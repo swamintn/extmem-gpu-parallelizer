@@ -1,0 +1,101 @@
+									INTRO
+Parallel recursive DP problems using GPU, with data residing in the external
+memory
+	
+	
+									WORK TO BE DONE AND CHECKPOINT
+									
+FLOYD-WARSHALL (All Pairs Shortest Path)
+
+Check with Rathish about STXXL with Cilk		:	    DONE
+Layout the input in Z-morton format				:	    Refer to Professor's
+														Advanced Programming lecture 
+FLOYD-WARSHALL CPU Implementation with STXXL	:	    No parallelization at
+														this level, only unicore CPU processing
+Memory-size setting for STXXL					:	    Need to set the RAM size as 1GB, so that problem does not 
+														fit in it, and we use ext mem	
+Study standard CUDA documentation / tutorials	:	    Professor's supercomputing lectures, or 
+														other better material
+Write GPU code for transfer from CPU to GPU 
+global memory and from GPU global to shared mem :	    Need to find GPU memory size, using some API
+Parallel iterative code in GPU shared memory
+using GPU kernel								:	    Need to figure this out
+EVALUATION										:	    Compare GPU vs CPU performance, need to implement both
+
+
+									IMPLEMENTATION OF APSP:
+
+1) First, form a Z-morton / row-major layout for the input
+(http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=7161519)
+
+
+Take r = 4, d = 2 and design r-way R-DP (Pg 118 of thesis)
+Note that the serial iterative base cases have the same func for A,B,C and D
+    2) Also Note that you have to construct parallel iter base cases from this
+
+Convert to T r-way R-DP using memory hierarchies now (Pg 107)
+	Disk -> RAM -> GPU global memory -> GPU shared memory
+	Let input DP table be present at level h (h = 3) which is on the disk
+	3) Only 1 host-disk-A function is present, as the top level will have only 
+	   1 recursive function,  it just splits the n x n problem into r x r problems of size n/r x n/r
+	   r is chosen such that n/r fits into the RAM
+	   Host represents that the code runs on the CPU and the disk represents that the data is on the disk
+	   This function copies the relevant submatrices to RAM and then invokes 4 functions 
+	   host-RAM-A, host-RAM-B, host-RAM-C, host-RAM-D
+		
+	4) host-RAM-* splits each (n/r x n/r) into r' x r' problems of size (n/(r.r') x n/(r.r'))
+			These functions copy the relevant submatrices to the GPU glob
+			memory and invoke 4 other func dev-global-A, dev-global-B, dev-global-C, dev-global-D
+			dev indicates that the code will be on the GPU in the next level,
+			and global indicates that it will be in the GPU global memory
+	
+	5) dev-global-* splits the problem further into submatrices to invoke :
+	6) dev-shared-* in which we use iterative kernels and use threads to perform the computations
+
+For the CPU programs, the base case dimension length for the algorithms was set to 256 and we run 
+iterative kernels inside each base case	(Don't know what this means)
+
+
+								ICPC (FOR MAC)
+REGISTER AND DOWNLOAD	:	https://software.intel.com/en-us/qualify-for-free-software/student
+
+INSTALL LOCATION	    :	/opt/intel
+
+BUILD			        :	https://software.intel.com/en-us/get-started-with-parallel-studio-xe-for-osx
+				            REMEMBER TO SET THE ENVIRON VARIABLE BY RUNNING 
+							"sh /opt/intel/bin/compilevars.sh <intel64>" (in the current console terminal)
+							BETTER IS TO SET IT PERMANENTLY IN bash_profile itself
+
+DETAILED GUIDE		    :	https://software.intel.com/sites/default/files/managed/37/62/PSXE2017Update2_Release_Notes_en_US_OSX.PDF
+
+CODE SAMPLES			:	https://software.intel.com/en-us/product-code-samples
+				
+LACK OF SUPPORT FEATURES:	Lack of time feature, no gettime() / CLOCK_MONOTONIC 
+							But this is not a fault of ICPC, MAC lacks the support for time
+
+		
+								STXXL
+http://stxxl.org/tags/1.4.1/install_unix.html
+If cmake does not work, add /usr/local/lib, /usr/lib and /usr/lib64 to the DYLD_LIBRARY_PATH
+
+STEPS TO FACILITATE STXXL WITH CPU
+	1)	Go to <project-directory>/build and do a cmake with -DCMAKE_CXX_COMPILER=icpc and -DCMAKE_C_COMPILER=icc
+	2)	Then include the cilk headers in stxxl-proj-folder/include	->	This step is not needed anymore
+		Instead of the above, we can just add the /opt/intel/include folder in CMakefiles.txt in the <project-directory>
+	3)	(Optional step)Then set PATH to the dyn lib of cilk by running source /opt/intel/bin/compilevars.sh <intel64>
+
+
+
+								CUDA
+INSTALLATION		:
+http://docs.nvidia.com/cuda/cuda-installation-guide-mac-os-x/#axzz4dFhwgiIv
+IF nvcc does not work, add export DYLD_LIBRARY_PATH=/usr/local/cuda/lib,	export PATH=$PATH:/usr/local/cuda/bin	
+IF CUDA driver version is insufficient for CUDA runtime version, it means your GPU can`t be 
+manipulated by the CUDA runtime API, so you need to update your driver
+
+export PATH=/Developer/NVIDIA/CUDA-8.0.61/bin${PATH:+:${PATH}}
+export DYLD_LIBRARY_PATH=/Developer/NVIDIA/CUDA-8.0.61/lib${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}
+export LD_LIBRARY_PATH=/usr/local/cuda/lib
+export DYLD_LIBRARY_PATH=/usr/local/cuda/lib:$DYLD_LIBRARY_PATH
+export PATH=/usr/local/cuda/bin:$PATH
+
