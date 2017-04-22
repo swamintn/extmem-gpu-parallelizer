@@ -11,35 +11,48 @@ Can we use STAMPEDE?
 	Also, there are times of the day when it is easier to execute stuff in Stampede
 
 				
-How to make sure this uses external mem? Is the only way to make sure by using a data size larger than RAM size? Or do we have to configure disks in some manner?
-	No need to configure disks in any manner. Just set the RAM size to be smaller than the data size, as follows :
-->	Set the external block size as 4MB, #pages as 1024, and #blocks per page as 1 - This gives the RAM size as 4GB (we could change this to 1GB if we want)
+How to make sure this uses external mem? Is the only way to make sure by using a 
+data size larger than RAM size? Or do we have to configure disks in some manner?
+	No need to configure disks in any manner. Just set the RAM size to be smaller 
+    than the data size, as follows :
+->	Set the external block size as 4MB, #pages as 1024, and #blocks per page as 1 
+        - This gives the RAM size as 4GB (we could change this to 1GB if we want)
 
-In STXXL, we set the external block size as 4MB, #pages as 1024, and #blocks per page as 1. This gives the RAM size as 4GB. How to do this?
+In STXXL, we set the external block size as 4MB, #pages as 1024, and #blocks per page as 1.
+This gives the RAM size as 4GB. How to do this?
 ->	Check with Rathish
 	How do we find out the size of GPU global mem and GPU shared memory?	
 ->		This is fixed, there will be some GPU API would be available for this
 
 
 Why is limiting the RAM size so important?
-	DP problems with cubic space could easily exceed the entire RAM, so we need not worry about them as they will have to make use of STXXL
-	APSP in 2-dimensions still uses only quadratic space, so there is a chance that even a large problem completely fits in the RAM itself
-	LCS uses only linear space : Need to restrict the RAM size even more, if you want to use ext memory
+	DP problems with cubic space could easily exceed the entire RAM, so we need not 
+    worry about them as they will have to make use of STXXL
+	APSP in 2-dimensions still uses only quadratic space, so there is a chance that 
+    even a large problem completely fits in the RAM itself
+	LCS uses only linear space : Need to restrict the RAM size even more, if you want 
+    to use ext memory
 
 
-Do I just have to use normal STXXL for disk to RAM, and then use parallel algo for RAM to CPU/GPU alone?
-	Whatever is b/w ext memory and RAM is on CPU, from the RAM to GPU global memory there will be host-code, and then from GPU glob mem to shared mem and on shared mem 		there will be dev-code
+Do I just have to use normal STXXL for disk to RAM, and then use parallel algo for 
+RAM to CPU/GPU alone?
+	Whatever is b/w ext memory and RAM is on CPU, from the RAM to GPU global memory 
+    there will be host-code, and then from GPU glob mem to shared mem and on shared mem 
+	there will be dev-code
 	The parallelization is only in the GPU shared memory(maybe slightly before that)
-	We don't use multicores on CPU, we use only serial code on CPU, the parallelization is only when it reaches the GPU
+	We don't use multicores on CPU, we use only serial code on CPU, the parallelization 
+    is only when it reaches the GPU
 ->	Launch the tasks based on the GPU global memory size
 
 		
 What is A-loop, B-loop in FW-APSP r-way R-DP code(Pg 118)? 
 ->	Parallel iterative code implemented using a GPU kernel
 	There are blocks, inside which there are individual threads
-->	Standard CUDA documentation / tutorials		:	Supercomputing course few slides are present on that (2 lectures). But there are much better resources
+->	Standard CUDA documentation / tutorials		:	Supercomputing course few slides are 
+    present on that (2 lectures). But there are much better resources
 
-What is "Z-morton-row-major layout in the external-memory such that when a submatrix reaches a size that fits in the GPU global memory it is stored in row major order"?
+What is "Z-morton-row-major layout in the external-memory such that when a submatrix 
+reaches a size that fits in the GPU global memory it is stored in row major order"?
 	Store n x n matrix in a linear array for cache-efficiency
 ->	Store as Z recursively	->	More cache-efficient than others
 
@@ -49,7 +62,8 @@ STXXL
 	Do all the allocation from a single array, for this array (give a long array) 
 	Just give 4GB of this array in RAM
 	If you try to give another array, 4GB allocation does not hold for the other array
-	Need to add space for something else, do explicit allocation of everything from that arr (ip, op and intermediate memory)
+	Need to add space for something else, do explicit allocation of everything from that arr 
+    (ip, op and intermediate memory)
 
 ->Evaluation
 	Need to run the CPU level stats ourself
