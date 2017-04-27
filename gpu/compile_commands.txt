@@ -1,0 +1,3 @@
+# Compiling gpu_info.cu
+nvcc -arch=compute_35 -code=sm_35 gpu_info.cu -o gpu_info
+
