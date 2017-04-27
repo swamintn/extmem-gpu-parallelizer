@@ -4,7 +4,7 @@ Check with Rathish about STXXL with Cilk
 	DONE
 
 
-Check if ablt to do memory-size setting for STXXL	
+Check if able to do memory-size setting for STXXL	
 	Need to set the RAM size such that problem does not fit in it, and we do
 	use external memory	
 	Checked, we are able to set
@@ -21,15 +21,13 @@ Check STXXL IO
 	which is faster than iterator i/o (as no prefetching)
 
 
-Layout the input in Z-morton format				:	    Refer to Professor's Advanced Programming lecture 
+Layout the input in Z-morton format		:	    DONE
 
 
-FLOYD-WARSHALL CPU Implementation with STXXL	:	    No parallelization at
-														this level, only unicore CPU processing
+FLOYD-WARSHALL CPU Implementation with STXXL	:	    No parallelization at this level, only unicore CPU processing
 
 
-Study standard CUDA documentation / tutorials	:	    Professor's supercomputing lectures, or 
-														other better material
+Study standard CUDA documentation / tutorials	:	    Professor's supercomputing lectures, or other better material
 
 
 Write GPU code for transfer from CPU to GPU 
@@ -37,7 +35,7 @@ global memory and from GPU global to shared mem :	    Need to find GPU memory si
 
 
 Parallel iterative code in GPU shared memory
-using GPU kernel								:	    Need to figure this out
+using GPU kernel				:	    Need to figure this out
 
 
-EVALUATION										:	    Compare GPU vs CPU performance, need to implement both
+EVALUATION					:	    Compare GPU vs CPU performance, need to implement both
