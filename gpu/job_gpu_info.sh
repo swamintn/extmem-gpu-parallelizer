@@ -6,4 +6,6 @@
 #SBATCH -t 00:10:00
 
 module load cuda
-./gpu_info
+date
+./vecAdd
+date
