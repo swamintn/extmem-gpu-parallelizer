@@ -17,64 +17,38 @@ using namespace std;
 #define SIZE (1 << TWO_POWER)
 #define SIZE_OF_LONG 8
 
-int tilesize = pow(2,25);	//	2 MB RAM to be fixed
+int tilesize = pow(2,20);	//	1 MB RAM to be fixed
 //int size = pow(2,11);		// 1 MB RAM will be occupied by a 2^9 * 2^9 matrix,
 							// with the given size, there will be 16 such matrices
 int counter = 0;
 
 void A_loop( int xrow, int xcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 void B_loop( int xrow, int xcol, int urow, int ucol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 void C_loop( int xrow, int xcol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 void D_loop( int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 void loop_fw(int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 
-
-
-
-//   Taken from https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
-
-uint32_t encode2D_to_morton_32bit(uint32_t x, uint32_t y)
-{
-    x &= 0x0000ffff;                  // x = ---- ---- ---- ---- fedc ba98 7654 3210
-    x = (x ^ (x <<  8)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
-    x = (x ^ (x <<  4)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
-    x = (x ^ (x <<  2)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
-    x = (x ^ (x <<  1)) & 0x55555555; // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
-
-    y &= 0x0000ffff;                  // x = ---- ---- ---- ---- fedc ba98 7654 3210
-    y = (y ^ (y <<  8)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
-    y = (y ^ (y <<  4)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
-    y = (y ^ (y <<  2)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
-    y = (y ^ (y <<  1)) & 0x55555555; // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
-    
-    // This will return row-major order z ordering. If we switch x and y, it
-    // will be column-major 
-    return (x << 1) | y;
-}
-
-
-
-
-
 void loop_fw(int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd) {
-	int Xi = 0, Xj = 0, Ui = 0, Vj = 0, K = 0, cur = 0, first = 0, second = 0;
+//	counter++;
+//	cout << "COUNT IS : " << counter << endl;
+	int Xi = 0, Xj = 0, Ui = 0, Vj = 0, K = 0;
 	for (int k = 0; k < n; k++) {
 		cilk_for (int i = 0; i < n; i++) {
 			cilk_for (int j = 0; j < n; j++) {
@@ -83,11 +57,7 @@ stxxl::lru>::result& floyd) {
 				Ui = urow + i;
 				K =  ucol + k;
 				Vj = vcol + j;
-				cur = encode2D_to_morton_32bit(Xi, Xj);
-				first = encode2D_to_morton_32bit(Ui, k);
-				second = encode2D_to_morton_32bit(K, Vj);
 				//floyd[Xi][Xj] = min(floyd[Xi][Xj], floyd[Ui][K] + floyd[K][Vj]);
-				floyd[cur] = min(floyd[cur], floyd[first] + floyd[second]);
 			}
 		}
 	}	
@@ -96,7 +66,7 @@ stxxl::lru>::result& floyd) {
 
 
 void A_loop( int xrow, int xcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd) {
 
 	/*
@@ -128,7 +98,7 @@ stxxl::lru>::result& floyd) {
 
 
 void B_loop( int xrow, int xcol, int urow, int ucol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd) {
 
 	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
@@ -156,7 +126,7 @@ stxxl::lru>::result& floyd) {
 }
 
 void C_loop( int xrow, int xcol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd) {
 
 	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
@@ -185,7 +155,7 @@ stxxl::lru>::result& floyd) {
 
 
 void D_loop( int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC,
 stxxl::lru>::result& floyd) {
 
 	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
@@ -215,7 +185,7 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	typedef stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC, stxxl::lru>::result vector;
+	typedef stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC, stxxl::lru>::result vector;
 	vector floyd;
 	int row = 0, col = 0, index = 0;
 	long result = 0;
