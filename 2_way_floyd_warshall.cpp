@@ -16,37 +16,38 @@ using namespace std;
 #define TWO_POWER 11
 #define SIZE (1 << TWO_POWER)
 #define SIZE_OF_LONG 8
+#define MEMORY (1 << 25)
 
-int tilesize = pow(2,25);	//	2 MB RAM to be fixed
+int tilesize = MEMORY;	//	2 MB RAM to be fixed
 //int size = pow(2,11);		// 1 MB RAM will be occupied by a 2^9 * 2^9 matrix,
 							// with the given size, there will be 16 such matrices
 int counter = 0;
 
 void A_loop( int xrow, int xcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 void B_loop( int xrow, int xcol, int urow, int ucol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 void C_loop( int xrow, int xcol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 void D_loop( int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 void loop_fw(int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024*1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd);
 
 
 
 
 
-//   Taken from https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
+//   Taken from https://fgiesen.wordpress.com/2009/ 12/13/decoding-morton-codes/
 
 uint32_t encode2D_to_morton_32bit(uint32_t x, uint32_t y)
 {
@@ -72,7 +73,7 @@ uint32_t encode2D_to_morton_32bit(uint32_t x, uint32_t y)
 
 
 void loop_fw(int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd) {
 	int Xi = 0, Xj = 0, Ui = 0, Vj = 0, K = 0, cur = 0, first = 0, second = 0;
 	for (int k = 0; k < n; k++) {
@@ -96,7 +97,7 @@ stxxl::lru>::result& floyd) {
 
 
 void A_loop( int xrow, int xcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd) {
 
 	/*
@@ -128,7 +129,7 @@ stxxl::lru>::result& floyd) {
 
 
 void B_loop( int xrow, int xcol, int urow, int ucol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd) {
 
 	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
@@ -156,7 +157,7 @@ stxxl::lru>::result& floyd) {
 }
 
 void C_loop( int xrow, int xcol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd) {
 
 	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
@@ -185,7 +186,7 @@ stxxl::lru>::result& floyd) {
 
 
 void D_loop( int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC,
+stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
 stxxl::lru>::result& floyd) {
 
 	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
@@ -209,22 +210,22 @@ stxxl::lru>::result& floyd) {
 
 int main(int argc, char *argv[]) {
 
-	if (argc != 2) {
+	if (argc != 3) {
 		cout << "Inadequate parameters, provide input in the format "
-				"./a.out <input_file>" << endl;
+				"./a.out <input_file> <output_file>" << endl;
 		exit(1);
 	}
 
-	typedef stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 32 * 1024 * 1024, stxxl::RC, stxxl::lru>::result vector;
+	typedef stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC, stxxl::lru>::result vector;
 	vector floyd;
 	int row = 0, col = 0, index = 0;
 	long result = 0;
 	
 	string ipfile_name(argv[1]);
-	//string opfile_name(argv[2]);
+	string opfile_name(argv[2]);
 
 	ifstream ipfile(ipfile_name);
-	//ofstream opfile(opfile_name);
+	ofstream opfile(opfile_name);
 
 	string line;
 
@@ -243,7 +244,17 @@ int main(int argc, char *argv[]) {
 	A_loop(0,0, SIZE, floyd);
 	cout << "FLOYD done\n";	
 
+	for (int i = 0; i < (SIZE); i++) {
+		for (int j = 0; j < (SIZE); j++) {
+			if (j != 0) {
+				opfile << " ";
+			}
+			opfile << floyd[encode2D_to_morton_32bit(i,j)];
+		}
+		opfile << endl;
+	}
+
 	ipfile.close();
-	//opfile.close();
+	opfile.close();
 	return 0;
 }
