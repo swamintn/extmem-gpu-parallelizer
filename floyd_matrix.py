@@ -17,6 +17,8 @@ def generate_matrix(p, min_val, max_val):
 		for j in xrange(n):
 			if (i != j):
 				matrix[i][j] = random.randint(min_val, max_val)
+			else:
+				matrix[i][j] = 0
 	return matrix
 
 def main():

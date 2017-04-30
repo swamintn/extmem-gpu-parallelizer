@@ -55,9 +55,11 @@ int main(int argc, char *argv[])
 	ifstream ipfile(ipfile_name);
 	ofstream opfile(opfile_name);	
 	
+	row = 0;
 	while (getline(ipfile,line) && row < size) {
 		stringstream ss(line);
 		string buf;
+		col = 0;
 		while ( (ss >> buf) && (col < size) ) {
 			normal_matrix[row][col] = stol(buf);
 			col++;
