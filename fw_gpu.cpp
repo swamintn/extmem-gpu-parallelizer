@@ -1,39 +1,57 @@
-/***************************************************************************
- *  local/test1.cpp
- *
- *  This is an example file included in the local/ directory of STXXL. All .cpp
- *  files in local/ are automatically compiled and linked with STXXL by CMake.
- *  You can use this method for simple prototype applications.
- *
- *  Part of the STXXL. See http://stxxl.sourceforge.net
- *
- *  Copyright (C) 2013 Timo Bingmann <tb@panthema.net>
- *
- *  Distributed under the Boost Software License, Version 1.0.
- *  (See accompanying file LICENSE_1_0.txt or copy at
- *  http://www.boost.org/LICENSE_1_0.txt)
- **************************************************************************/
-
+#include <fstream>
 #include <iostream>
 #include <limits>
+#include <ctime>
 
 #include <stxxl/vector>
-#include <stxxl/random>
-#include <stxxl/sort>
 
 #include "fw_gpu_common.h"
 
-struct my_less_int : std::less<int>
-{
-    int min_value() const { return std::numeric_limits<int>::min(); }
-    int max_value() const { return std::numeric_limits<int>::max(); }
-};
+using namespace std;
 
-int main()
-{
-    // create vector
-    stxxl::VECTOR_GENERATOR<int>::result vector;
-    vector.push_back(3);
+typedef stxxl::VECTOR_GENERATOR<unsigned long>::result fw_vector_type;
 
-    return kernel_wrapper();	
+int main(int argc, char *argv[])
+{
+    if (argc != 2) {
+        cout << "Inadequate parameters, provide input in the format "
+                "./fw_gpu <z_morton_input_file>" << endl;
+        exit(1);
+    }
+
+    //typedef stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, 1024*1024, stxxl::RC, stxxl::lru>::result vector;
+    //typedef stxxl::VECTOR_GENERATOR<unsigned long>::result vector;
+    
+    fw_vector_type zfloyd;
+    string inp_filename(argv[1]);
+    ifstream inp_file(inp_filename);
+     
+    string line;
+    int size = 0;
+    unsigned long value = 0;
+    cout << "Reading input file, " << inp_filename << endl;
+    while (getline(inp_file, line)) {
+        stringstream ss(line);
+        string buf;
+        while (ss >> buf) {
+            if (buf == "inf")
+                value = numeric_limits<unsigned long>::max();
+            else
+                value = stol(buf);
+            zfloyd.push_back(value);
+            size++;
+        }
+    }
+    cout << "Finished reading input file, size=" << size << endl;
+    inp_file.close();
+
+    // Printing vector
+    //for (fw_vector_type::iterator it = zfloyd.begin(); it != zfloyd.end(); ++it)
+    //    cout << *it << " ";
+    for (int i = 0; i < zfloyd.size(); ++i)
+        cout << zfloyd[i] << " ";
+    cout << endl;
+
+    return 1;
+    //return kernel_wrapper();	
 }

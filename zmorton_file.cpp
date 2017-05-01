@@ -1,15 +1,3 @@
-/***************************************************************************
- *  examples/containers/vector1.cpp
- *
- *  Part of the STXXL. See http://stxxl.sourceforge.net
- *
- *  Copyright (C) 2013 Daniel Feist <daniel.feist@student.kit.edu>
- *
- *  Distributed under the Boost Software License, Version 1.0.
- *  (See accompanying file LICENSE_1_0.txt or copy at
- *  http://www.boost.org/LICENSE_1_0.txt)
- **************************************************************************/
-
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
@@ -17,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <limits>
 #include <math.h>
 using namespace std;
 
@@ -61,7 +50,10 @@ int main(int argc, char *argv[])
 		string buf;
 		col = 0;
 		while ( (ss >> buf) && (col < size) ) {
-			normal_matrix[row][col] = stol(buf);
+            if (buf == "inf")
+                normal_matrix[row][col] = numeric_limits<long>::max();
+            else
+			    normal_matrix[row][col] = stol(buf);
 			col++;
 		}
 		if (col != size)
@@ -81,7 +73,10 @@ int main(int argc, char *argv[])
 		if (i != 0) {
 			opfile << " ";
 		}
-		opfile << zmorton_vector[i];
+        if (zmorton_vector[i] == numeric_limits<long>::max())
+            opfile << "inf";
+        else
+		    opfile << zmorton_vector[i];
 	}
 	opfile << endl;
 
