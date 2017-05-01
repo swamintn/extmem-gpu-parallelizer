@@ -85,7 +85,7 @@ stxxl::lru>::result& floyd) {
 				K =  ucol + k;
 				Vj = vcol + j;
 				cur = encode2D_to_morton_32bit(Xi, Xj);
-				first = encode2D_to_morton_32bit(Ui, k);
+				first = encode2D_to_morton_32bit(Ui, K);
 				second = encode2D_to_morton_32bit(K, Vj);
 				//floyd[Xi][Xj] = min(floyd[Xi][Xj], floyd[Ui][K] + floyd[K][Vj]);
 				floyd[cur] = min(floyd[cur], floyd[first] + floyd[second]);
