@@ -103,7 +103,7 @@ void host_RAM_A_fw(unsigned long *X,
 	else {
 		host_RAM_A_fw(X, xrow, xcol, (n/2));
 		cilk_spawn host_RAM_B_fw(X, X, xrow, xcol + (n/2), xrow, xcol, (n/2));
-					host_RAM_C_fw(X, X, xrow + (n/2), xcol, xrow, xcol, (n/2));
+			   host_RAM_C_fw(X, X, xrow + (n/2), xcol, xrow, xcol, (n/2));
 		cilk_sync;
 
 		host_RAM_D_fw(X, X, X, xrow + (n/2), xcol + (n/2), xrow + (n/2), xcol, xrow, xcol + (n/2), (n/2));
@@ -111,7 +111,7 @@ void host_RAM_A_fw(unsigned long *X,
 		
 		host_RAM_A_fw(X, xrow + (n/2), xcol + (n/2), (n/2));
 		cilk_spawn host_RAM_B_fw(X, X, xrow + (n/2), xcol, xrow + (n/2), xcol + (n/2), (n/2));
-					host_RAM_C_fw(X, X, xrow, xcol + (n/2), xrow + (n/2), xcol + (n/2), (n/2));
+			   host_RAM_C_fw(X, X, xrow, xcol + (n/2), xrow + (n/2), xcol + (n/2), (n/2));
 		cilk_sync;
 
 		host_RAM_D_fw(X, X, X, xrow, xcol, xrow, xcol + (n/2), xrow + (n/2), xcol, (n/2));
@@ -128,19 +128,19 @@ void host_RAM_B_fw(unsigned long *X, unsigned long *U,
 		serial_fw(X, U, X, xrow, xcol, urow, ucol, xrow, xcol, n);
 	else {
 		cilk_spawn host_RAM_B_fw(X, U, xrow, xcol, urow, ucol, (n/2));
-					host_RAM_B_fw(X, U, xrow, xcol + (n/2), urow, ucol, (n/2));
+			   host_RAM_B_fw(X, U, xrow, xcol + (n/2), urow, ucol, (n/2));
 		cilk_sync;
 	
 		cilk_spawn host_RAM_D_fw(X, U, X, xrow + (n/2), xcol, urow + (n/2), ucol, xrow, xcol, (n/2));
-					host_RAM_D_fw(X, U, X, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol, xrow, xcol + (n/2), (n/2));
+			   host_RAM_D_fw(X, U, X, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol, xrow, xcol + (n/2), (n/2));
 		cilk_sync;
 
 		cilk_spawn host_RAM_B_fw(X, U, xrow + (n/2), xcol, urow + (n/2), ucol + (n/2), (n/2));
-					host_RAM_B_fw(X, U, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol + (n/2), (n/2));
+			   host_RAM_B_fw(X, U, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol + (n/2), (n/2));
 		cilk_sync;
 	
 		cilk_spawn host_RAM_D_fw(X, U, X, xrow, xcol, urow, ucol + (n/2), xrow + (n/2), xcol, (n/2));
-					host_RAM_D_fw(X, U, X, xrow, xcol + (n/2), urow, ucol + (n/2), xrow + (n/2), xcol + (n/2), (n/2));
+			   host_RAM_D_fw(X, U, X, xrow, xcol + (n/2), urow, ucol + (n/2), xrow + (n/2), xcol + (n/2), (n/2));
 		cilk_sync;
 		
 	}
@@ -155,19 +155,19 @@ void host_RAM_C_fw(unsigned long *X, unsigned long *V,
 		serial_fw(X, X, V, xrow, xcol, xrow, xcol, vrow, vcol, n);
 	else {
 		cilk_spawn host_RAM_C_fw(X, V, xrow, xcol, vrow, vcol, (n/2));
-					host_RAM_C_fw(X, V, xrow + (n/2), xcol, vrow, vcol, (n/2));
+			   host_RAM_C_fw(X, V, xrow + (n/2), xcol, vrow, vcol, (n/2));
 		cilk_sync;
 
 		cilk_spawn host_RAM_D_fw(X, X, V, xrow, xcol + (n/2), xrow, xcol, vrow, vcol + (n/2), (n/2));
-					host_RAM_D_fw(X, X, V, xrow + (n/2), xcol + (n/2), xrow + (n/2), xcol, vrow, vcol + (n/2), (n/2));
+			   host_RAM_D_fw(X, X, V, xrow + (n/2), xcol + (n/2), xrow + (n/2), xcol, vrow, vcol + (n/2), (n/2));
 		cilk_sync;
 
 		cilk_spawn host_RAM_C_fw(X, V, xrow, xcol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
-					host_RAM_C_fw(X, V, xrow + (n/2), xcol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
+			   host_RAM_C_fw(X, V, xrow + (n/2), xcol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
 		cilk_sync;
 
 		cilk_spawn host_RAM_D_fw(X, X, V, xrow, xcol, xrow, xcol + (n/2), vrow + (n/2), vcol, (n/2));
-					host_RAM_D_fw(X, X, V, xrow + (n/2), xcol, xrow + (n/2), xcol + (n/2), vrow + (n/2), vcol, (n/2));
+			   host_RAM_D_fw(X, X, V, xrow + (n/2), xcol, xrow + (n/2), xcol + (n/2), vrow + (n/2), vcol, (n/2));
 		cilk_sync;
 		
 	}
@@ -182,15 +182,15 @@ void host_RAM_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
 		serial_fw(X, U, V, xrow, xcol, urow, ucol, vrow, vcol, n);
 	else {
 		cilk_spawn host_RAM_D_fw(X, U, V, xrow, xcol, urow, ucol, vrow, vcol, (n/2));
-					host_RAM_D_fw(X, U, V, xrow, xcol + (n/2), urow, ucol, vrow, vcol + (n/2), (n/2));
-					host_RAM_D_fw(X, U, V, xrow + (n/2), xcol, urow + (n/2), ucol, vrow, vcol, (n/2));
-					host_RAM_D_fw(X, U, V, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol, vrow, vcol + (n/2), (n/2));
+		cilk_spawn host_RAM_D_fw(X, U, V, xrow, xcol + (n/2), urow, ucol, vrow, vcol + (n/2), (n/2));
+		cilk_spawn host_RAM_D_fw(X, U, V, xrow + (n/2), xcol, urow + (n/2), ucol, vrow, vcol, (n/2));
+			   host_RAM_D_fw(X, U, V, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol, vrow, vcol + (n/2), (n/2));
 		cilk_sync;
 
 		cilk_spawn host_RAM_D_fw(X, U, V, xrow, xcol, urow, ucol + (n/2), vrow + (n/2), vcol, (n/2));
-					host_RAM_D_fw(X, U, V, xrow, xcol + (n/2), urow, ucol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
-					host_RAM_D_fw(X, U, V, xrow + (n/2), xcol, urow + (n/2), ucol + (n/2), vrow + (n/2), vcol, (n/2));
-					host_RAM_D_fw(X, U, V, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
+		cilk_spawn host_RAM_D_fw(X, U, V, xrow, xcol + (n/2), urow, ucol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
+		cilk_spawn host_RAM_D_fw(X, U, V, xrow + (n/2), xcol, urow + (n/2), ucol + (n/2), vrow + (n/2), vcol, (n/2));
+			   host_RAM_D_fw(X, U, V, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
 		cilk_sync;
 	}
 }
@@ -341,11 +341,12 @@ int main(int argc, char *argv[])
     op_file << "Finished reading input file, full_size=" << full_size << endl;
     inp_file.close();
     
-    ///*
+    /*
     op_file << "Array before execution in Z-morton vector format: " << endl;
     for (fw_vector_type::const_iterator it = zfloyd.begin(); it != zfloyd.end(); ++it)
         op_file << *it << " ";
     op_file << endl;
+    */
 
     uint64_t n = sqrt(full_size);
     host_disk_A_fw(zfloyd, 0, 0, n);
@@ -355,16 +356,19 @@ int main(int argc, char *argv[])
 		op_file << *it << " ";
     op_file << endl;
 
-	op_file << "Array in matrix format " << endl;
-	for (uint64_t i = 0; i < n; i++) {
-		for (uint64_t j = 0; j < n; j++) {
-			if (j != 0)
-				op_file << " ";
-			op_file << zfloyd[encode2D_to_morton_64bit(i,j)];
-		}
-		op_file << endl;
+    /*
+    op_file << "Array in matrix format " << endl;
+    for (uint64_t i = 0; i < n; i++) {
+	for (uint64_t j = 0; j < n; j++) {
+	    if (j != 0)
+		op_file << " ";
+	    op_file << zfloyd[encode2D_to_morton_64bit(i,j)];
 	}
-	op_file.close();
+	op_file << endl;
+    }
+    */
+    
+    op_file.close();
 
     return 0;
 }
