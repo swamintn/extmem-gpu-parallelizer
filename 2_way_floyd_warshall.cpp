@@ -13,8 +13,6 @@
 #include <pthread.h>
 #include <math.h>
 
-#include "fw_gpu_common.h"
-
 using namespace std;
 
 /**
@@ -74,8 +72,8 @@ void serial_fw(unsigned long *X, unsigned long *U, unsigned long *V,
                uint64_t n)
 {
     for (uint64_t k = 0; k < n; k++) {
-        for (uint64_t i = 0; i < n; i++) {
-            for (uint64_t j = 0; j < n; j++) {
+        cilk_for (uint64_t i = 0; i < n; i++) {
+            cilk_for (uint64_t j = 0; j < n; j++) {
                 uint64_t Xi = xrow + i; uint64_t Xj = xcol + j;
                 uint64_t Ui = urow + i; uint64_t Vj = vcol + j;
                 uint64_t K  = ucol + k;
@@ -314,7 +312,7 @@ int main(int argc, char *argv[])
 {
     if (argc != 3) {
         cout << "Inadequate parameters, provide input in the format "
-                "./fw_gpu <z_morton_input_file>" << endl;
+                "./fw_gpu <z_morton_input_file> <z_morton_output_file>" << endl;
         exit(1);
     }
     
@@ -367,28 +365,6 @@ int main(int argc, char *argv[])
 		op_file << endl;
 	}
 	op_file.close();
-    //*/
-    /*    
-    unsigned long *X = new unsigned long[full_size];
-    int index = 0;
-    for (fw_vector_type::const_iterator it = zfloyd.begin(); it != zfloyd.end(); ++it, ++index) {
-        X[index] = *it;
-    }
-    cout << endl;
-
-    for (int i = 0; i < full_size ; ++i) {
-        cout << X[i] << " ";
-    }
-    cout << endl;
-    serial_fw(X, X, X, 0, 0, 0, 0, 0, 0, sqrt(full_size));
-    for (int i = 0; i < full_size ; ++i) {
-        cout << X[i] << " ";
-    }
-    cout << endl;
-
-    delete [] X;
-    */
 
     return 0;
-    //return kernel_wrapper();	
 }
