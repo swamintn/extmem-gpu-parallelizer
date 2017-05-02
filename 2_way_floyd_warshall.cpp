@@ -201,7 +201,7 @@ void host_RAM_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
  */
 void read_to_RAM(fw_vector_type& zfloyd, unsigned long *X, uint64_t row, uint64_t col, uint64_t n)
 {
-    cout << "Reading from row " << row << " and col " << col << " of size " << n << " from disk" << endl; 
+    //cout << "Reading from row " << row << " and col " << col << " of size " << n << " from disk" << endl; 
     uint64_t i = 0;
     uint64_t begin_pos = encode2D_to_morton_64bit(row, col);
     uint64_t end_pos = begin_pos + (n*n) - 1;
@@ -215,7 +215,7 @@ void read_to_RAM(fw_vector_type& zfloyd, unsigned long *X, uint64_t row, uint64_
  */
 void write_to_disk(fw_vector_type& zfloyd, unsigned long *X, uint64_t row, uint64_t col, uint64_t n)
 {   
-    cout << "Writing from row " << row << " and col " << col << " of size " << n << " to disk" << endl; 
+    //cout << "Writing from row " << row << " and col " << col << " of size " << n << " to disk" << endl; 
     uint64_t i = 0;
     uint64_t begin_pos = encode2D_to_morton_64bit(row, col);
     uint64_t end_pos = begin_pos + (n*n) - 1;
@@ -242,7 +242,7 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
     else {
         uint64_t r = n / ALLOWED_SIZE_RAM;
         uint64_t m = n / r;
-        cout << "Splitting disk matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
+        //cout << "Splitting disk matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
 
         // Our RAM size is chosen such that it holds upto 3 times the allowed size
         unsigned long *W  = new unsigned long[m*m];
@@ -250,10 +250,10 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
         unsigned long *R2 = new unsigned long[m*m];
 
         for (uint64_t k = 0; k < r; k++) {
-            cout << "k " << k << endl;
+            //cout << "k " << k << endl;
 
             // Step 1: A_step - A(X_kk, U_kk, V_kk), X,U,V are the same
-            cout << "A\n";
+            //cout << "A\n";
             read_to_RAM(zfloyd, W, xrow + (m*k), xcol + m*k, m);
             host_RAM_A_fw(W, 0, 0, m);
             write_to_disk(zfloyd, W, xrow + (m*k), xcol + m*k, m);
@@ -261,7 +261,7 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
             // Step 2: B_C_step - B(X_kj, U_kk, V_kj), C(X_ik, U_ik, V_kk)
             // Note that B's U_kk and C's V_kk are the same
             // For B, X and V are the same, for C, X and U are the same
-            cout << "B\n";
+            //cout << "B\n";
             read_to_RAM(zfloyd, R1, xrow + (m*k), xcol + m*k, m);
             for (uint64_t j = 0; j < r; j++) {
                 if (j != k) {
@@ -271,7 +271,7 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
                     write_to_disk(zfloyd, W, xrow + (m*k), xcol + m*j, m);
                 }
             }
-            cout << "C\n";
+            //cout << "C\n";
             for (uint64_t i = 0; i < r; i++) {
                 if (i != k) {
                     // DEBUG: cout << "Ci " << i << endl;
@@ -282,7 +282,7 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
             }
 
             // Step 3: D_step - D(X_ij, U_ik, V_kj)
-            cout << "D\n";
+            //cout << "D\n";
             for (uint64_t i = 0; i < r; i++) {
                 if (i != k) {
                     // U_ik is same for all j
@@ -318,9 +318,9 @@ int main(int argc, char *argv[])
     
     fw_vector_type zfloyd;
     string inp_filename(argv[1]);
-	string op_filename(argv[2]);
+    string op_filename(argv[2]);
     ifstream inp_file(inp_filename);
-	ofstream op_file(op_filename);
+    ofstream op_file(op_filename);
      
     string line;
     uint64_t full_size = 0;
@@ -349,7 +349,24 @@ int main(int argc, char *argv[])
     */
 
     uint64_t n = sqrt(full_size);
+
+    struct timespec start, finish;
+    double time_taken;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     host_disk_A_fw(zfloyd, 0, 0, n);
+
+    clock_gettime(CLOCK_MONOTONIC, &finish);
+    time_taken  =  finish.tv_sec - start.tv_sec;
+    time_taken += (finish.tv_nsec - start.tv_nsec) / 1e9;
+ 
+
+
+    cout << "Parallel r-Way R-DP Floyd-Warshall with STXXL" << endl;   
+    cout << "Cores used: " << __cilkrts_get_nworkers() << endl;
+    cout << "Input file: " << inp_filename << endl;
+    cout << "Output file: " << op_filename << endl;
+    cout << "Time taken: " << time_taken << endl;
 
     op_file << "Array after execution in Z-morton vector format: " << endl;
     for (fw_vector_type::const_iterator it = zfloyd.begin(); it != zfloyd.end(); ++it)
