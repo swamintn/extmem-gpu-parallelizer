@@ -1,3 +1,5 @@
+#include <limits>
+#include <ctime>
 #include <algorithm>
 #include <stxxl/vector>
 #include <iostream>
@@ -11,250 +13,382 @@
 #include <pthread.h>
 #include <math.h>
 
+#include "fw_gpu_common.h"
+
 using namespace std;
 
-#define TWO_POWER 11
-#define SIZE (1 << TWO_POWER)
-#define SIZE_OF_LONG 8
-#define MEMORY (1 << 25)
+/**
+ * Different memory hierarchy configurations
+ */
+#define ALLOWED_SIZE_RAM (1 << 11)
+#define INFINITY_LENGTH (1 << 20)
+#define PARALLEL_ITERATIVE_THRESHOLD 32
 
-int tilesize = MEMORY;	//	2 MB RAM to be fixed
-//int size = pow(2,11);		// 1 MB RAM will be occupied by a 2^9 * 2^9 matrix,
-							// with the given size, there will be 16 such matrices
-int counter = 0;
+/**
+ * STXXL Configurations
+ */
+#define BLOCKS_PER_PAGE     1
+#define PAGES_IN_CACHE      3
+#define BLOCK_SIZE_IN_BYTES 8 * ALLOWED_SIZE_RAM * ALLOWED_SIZE_RAM // 32 * 3 MB
 
-void A_loop( int xrow, int xcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd);
+typedef stxxl::VECTOR_GENERATOR<unsigned long, BLOCKS_PER_PAGE, PAGES_IN_CACHE,
+                                BLOCK_SIZE_IN_BYTES,
+                                stxxl::RC, stxxl::lru>::result fw_vector_type;
 
-void B_loop( int xrow, int xcol, int urow, int ucol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd);
+void host_RAM_A_fw( unsigned long *X, uint64_t xrow, uint64_t xcol, uint64_t n);
 
-void C_loop( int xrow, int xcol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd);
+void host_RAM_B_fw( unsigned long *X, unsigned long *U, uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t n);
 
-void D_loop( int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd);
+void host_RAM_C_fw( unsigned long *X, unsigned long *V, uint64_t xrow, uint64_t xcol, uint64_t vrow, uint64_t vcol, uint64_t n);
 
-void loop_fw(int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd);
-
-
-
-
-
-//   Taken from https://fgiesen.wordpress.com/2009/ 12/13/decoding-morton-codes/
-
-uint32_t encode2D_to_morton_32bit(uint32_t x, uint32_t y)
+void host_RAM_D_fw( unsigned long *X, unsigned long *U, unsigned long *V, uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow, uint64_t vcol, uint64_t n);
+/** 
+ * Encoding and decoding Morton codes
+ * (Taken from https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/)
+ */
+uint64_t encode2D_to_morton_64bit(uint64_t x, uint64_t y)
 {
-    x &= 0x0000ffff;                  // x = ---- ---- ---- ---- fedc ba98 7654 3210
-    x = (x ^ (x <<  8)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
-    x = (x ^ (x <<  4)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
-    x = (x ^ (x <<  2)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
-    x = (x ^ (x <<  1)) & 0x55555555; // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
+    x &= 0x00000000ffffffff;
+    x = (x ^ (x <<  16)) & 0x0000ffff0000ffff;
+    x = (x ^ (x <<  8))  & 0x00ff00ff00ff00ff;
+    x = (x ^ (x <<  4))  & 0x0f0f0f0f0f0f0f0f;
+    x = (x ^ (x <<  2))  & 0x3333333333333333;
+    x = (x ^ (x <<  1))  & 0x5555555555555555;
 
-    y &= 0x0000ffff;                  // x = ---- ---- ---- ---- fedc ba98 7654 3210
-    y = (y ^ (y <<  8)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
-    y = (y ^ (y <<  4)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
-    y = (y ^ (y <<  2)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
-    y = (y ^ (y <<  1)) & 0x55555555; // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
-    
-    // This will return row-major order z ordering. If we switch x and y, it
-    // will be column-major 
+    y &= 0x00000000ffffffff;
+    y = (y ^ (y <<  16)) & 0x0000ffff0000ffff;
+    y = (y ^ (y <<  8))  & 0x00ff00ff00ff00ff;
+    y = (y ^ (y <<  4))  & 0x0f0f0f0f0f0f0f0f;
+    y = (y ^ (y <<  2))  & 0x3333333333333333;
+    y = (y ^ (y <<  1))  & 0x5555555555555555;
+
+    // This will return row-major order z ordering. If we switch x and y, it will be column-major
     return (x << 1) | y;
 }
 
-
-
-
-
-void loop_fw(int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd) {
-	int Xi = 0, Xj = 0, Ui = 0, Vj = 0, K = 0, cur = 0, first = 0, second = 0;
-	for (int k = 0; k < n; k++) {
-		cilk_for (int i = 0; i < n; i++) {
-			cilk_for (int j = 0; j < n; j++) {
-				Xi = xrow + i;
-				Xj = xcol + j;
-				Ui = urow + i;
-				K =  ucol + k;
-				Vj = vcol + j;
-				cur = encode2D_to_morton_32bit(Xi, Xj);
-				first = encode2D_to_morton_32bit(Ui, K);
-				second = encode2D_to_morton_32bit(K, Vj);
-				//floyd[Xi][Xj] = min(floyd[Xi][Xj], floyd[Ui][K] + floyd[K][Vj]);
-				floyd[cur] = min(floyd[cur], floyd[first] + floyd[second]);
-			}
-		}
-	}	
-	return;
+/**
+ * Serial Floyd-Warshall's algorithm
+ */
+void serial_fw(unsigned long *X, unsigned long *U, unsigned long *V,
+               uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow, uint64_t vcol,
+               uint64_t n)
+{
+    for (uint64_t k = 0; k < n; k++) {
+        for (uint64_t i = 0; i < n; i++) {
+            for (uint64_t j = 0; j < n; j++) {
+                uint64_t Xi = xrow + i; uint64_t Xj = xcol + j;
+                uint64_t Ui = urow + i; uint64_t Vj = vcol + j;
+                uint64_t K  = ucol + k;
+                uint64_t cur = encode2D_to_morton_64bit(Xi, Xj);
+                uint64_t first = encode2D_to_morton_64bit(Ui, K);
+                uint64_t second = encode2D_to_morton_64bit(K, Vj);
+                X[cur] = min(X[cur], (U[first] + V[second]));
+            }
+        }
+    }
 }
 
-
-void A_loop( int xrow, int xcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd) {
-
+/**
+ * RAM code
+ */
+void host_RAM_A_fw(unsigned long *X,
+                   uint64_t xrow, uint64_t xcol, uint64_t n)
+{
 	/*
 	 * Every n x n size matrix is split into r x r submatrices of 
 	 * size n/r x n/r each
 	 */
-	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
+	//int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
 
-	if (r <= tilesize)
-		loop_fw(xrow, xcol, xrow, xcol, xrow, xcol, n, floyd);
+	if (n <= PARALLEL_ITERATIVE_THRESHOLD)
+		serial_fw(X, X, X, xrow, xcol, xrow, xcol, xrow, xcol, n);
 	else {
-		A_loop(xrow, xcol, (n/2), floyd);
-		cilk_spawn B_loop(xrow, xcol + (n/2), xrow, xcol, (n/2), floyd);
-					C_loop(xrow + (n/2), xcol, xrow, xcol, (n/2), floyd);
+		host_RAM_A_fw(X, xrow, xcol, (n/2));
+		cilk_spawn host_RAM_B_fw(X, X, xrow, xcol + (n/2), xrow, xcol, (n/2));
+					host_RAM_C_fw(X, X, xrow + (n/2), xcol, xrow, xcol, (n/2));
 		cilk_sync;
 
-		D_loop(xrow + (n/2), xcol + (n/2), xrow + (n/2), xcol, xrow, xcol + (n/2), (n/2), floyd);
+		host_RAM_D_fw(X, X, X, xrow + (n/2), xcol + (n/2), xrow + (n/2), xcol, xrow, xcol + (n/2), (n/2));
 		
 		
-		A_loop(xrow + (n/2), xcol + (n/2), (n/2), floyd);
-		cilk_spawn B_loop(xrow + (n/2), xcol, xrow + (n/2), xcol + (n/2), (n/2), floyd);
-					C_loop(xrow, xcol + (n/2), xrow + (n/2), xcol + (n/2), (n/2), floyd);
+		host_RAM_A_fw(X, xrow + (n/2), xcol + (n/2), (n/2));
+		cilk_spawn host_RAM_B_fw(X, X, xrow + (n/2), xcol, xrow + (n/2), xcol + (n/2), (n/2));
+					host_RAM_C_fw(X, X, xrow, xcol + (n/2), xrow + (n/2), xcol + (n/2), (n/2));
 		cilk_sync;
 
-		D_loop(xrow, xcol, xrow, xcol + (n/2), xrow + (n/2), xcol, (n/2), floyd);
+		host_RAM_D_fw(X, X, X, xrow, xcol, xrow, xcol + (n/2), xrow + (n/2), xcol, (n/2));
 
 	}
 }
 
+void host_RAM_B_fw(unsigned long *X, unsigned long *U,
+                   uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t n)
+{
+	//int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
 
-void B_loop( int xrow, int xcol, int urow, int ucol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd) {
-
-	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
-
-	if (r <= tilesize)
-		loop_fw(xrow, xcol, urow, ucol, xrow, xcol, n, floyd);
+	if (n <= PARALLEL_ITERATIVE_THRESHOLD)
+		serial_fw(X, U, X, xrow, xcol, urow, ucol, xrow, xcol, n);
 	else {
-		cilk_spawn B_loop(xrow, xcol, urow, ucol, (n/2), floyd);
-					B_loop(xrow, xcol + (n/2), urow, ucol, (n/2), floyd);
+		cilk_spawn host_RAM_B_fw(X, U, xrow, xcol, urow, ucol, (n/2));
+					host_RAM_B_fw(X, U, xrow, xcol + (n/2), urow, ucol, (n/2));
 		cilk_sync;
 	
-		cilk_spawn D_loop(xrow + (n/2), xcol, urow + (n/2), ucol, xrow, xcol, (n/2), floyd);
-					D_loop(xrow + (n/2), xcol + (n/2), urow + (n/2), ucol, xrow, xcol + (n/2), (n/2), floyd);
+		cilk_spawn host_RAM_D_fw(X, U, X, xrow + (n/2), xcol, urow + (n/2), ucol, xrow, xcol, (n/2));
+					host_RAM_D_fw(X, U, X, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol, xrow, xcol + (n/2), (n/2));
 		cilk_sync;
 
-		cilk_spawn B_loop(xrow + (n/2), xcol, urow + (n/2), ucol + (n/2), (n/2), floyd);
-					B_loop(xrow + (n/2), xcol + (n/2), urow + (n/2), ucol + (n/2), (n/2), floyd);
+		cilk_spawn host_RAM_B_fw(X, U, xrow + (n/2), xcol, urow + (n/2), ucol + (n/2), (n/2));
+					host_RAM_B_fw(X, U, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol + (n/2), (n/2));
 		cilk_sync;
 	
-		cilk_spawn D_loop(xrow, xcol, urow, ucol + (n/2), xrow + (n/2), xcol, (n/2), floyd);
-					D_loop(xrow, xcol + (n/2), urow, ucol + (n/2), xrow + (n/2), xcol + (n/2), (n/2), floyd);
+		cilk_spawn host_RAM_D_fw(X, U, X, xrow, xcol, urow, ucol + (n/2), xrow + (n/2), xcol, (n/2));
+					host_RAM_D_fw(X, U, X, xrow, xcol + (n/2), urow, ucol + (n/2), xrow + (n/2), xcol + (n/2), (n/2));
 		cilk_sync;
 		
 	}
 }
 
-void C_loop( int xrow, int xcol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd) {
+void host_RAM_C_fw(unsigned long *X, unsigned long *V,
+                   uint64_t xrow, uint64_t xcol, uint64_t vrow, uint64_t vcol, uint64_t n)
+{
+	//int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
 
-	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
-
-	if (r <= tilesize)
-		loop_fw(xrow, xcol, xrow, xcol, vrow, vcol, n, floyd);
+	if (n <= PARALLEL_ITERATIVE_THRESHOLD)
+		serial_fw(X, X, V, xrow, xcol, xrow, xcol, vrow, vcol, n);
 	else {
-		cilk_spawn C_loop(xrow, xcol, vrow, vcol, (n/2), floyd);
-					C_loop(xrow + (n/2), xcol, vrow, vcol, (n/2), floyd);
+		cilk_spawn host_RAM_C_fw(X, V, xrow, xcol, vrow, vcol, (n/2));
+					host_RAM_C_fw(X, V, xrow + (n/2), xcol, vrow, vcol, (n/2));
 		cilk_sync;
 
-		cilk_spawn D_loop(xrow, xcol + (n/2), xrow, xcol, vrow, vcol + (n/2), (n/2), floyd);
-					D_loop(xrow + (n/2), xcol + (n/2), xrow + (n/2), xcol, vrow, vcol + (n/2), (n/2), floyd);
+		cilk_spawn host_RAM_D_fw(X, X, V, xrow, xcol + (n/2), xrow, xcol, vrow, vcol + (n/2), (n/2));
+					host_RAM_D_fw(X, X, V, xrow + (n/2), xcol + (n/2), xrow + (n/2), xcol, vrow, vcol + (n/2), (n/2));
 		cilk_sync;
 
-		cilk_spawn C_loop(xrow, xcol + (n/2), vrow + (n/2), vcol + (n/2), (n/2), floyd);
-					C_loop(xrow + (n/2), xcol + (n/2), vrow + (n/2), vcol + (n/2), (n/2), floyd);
+		cilk_spawn host_RAM_C_fw(X, V, xrow, xcol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
+					host_RAM_C_fw(X, V, xrow + (n/2), xcol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
 		cilk_sync;
 
-		cilk_spawn D_loop(xrow, xcol, xrow, xcol + (n/2), vrow + (n/2), vcol, (n/2), floyd);
-					D_loop(xrow + (n/2), xcol, xrow + (n/2), xcol + (n/2), vrow + (n/2), vcol, (n/2), floyd);
+		cilk_spawn host_RAM_D_fw(X, X, V, xrow, xcol, xrow, xcol + (n/2), vrow + (n/2), vcol, (n/2));
+					host_RAM_D_fw(X, X, V, xrow + (n/2), xcol, xrow + (n/2), xcol + (n/2), vrow + (n/2), vcol, (n/2));
 		cilk_sync;
 		
 	}
 }
 
+void host_RAM_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
+                   uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow, uint64_t vcol, uint64_t n)
+{
+	//int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
 
-void D_loop( int xrow, int xcol, int urow, int ucol, int vrow, int vcol, int n,
-stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC,
-stxxl::lru>::result& floyd) {
-
-	int r = SIZE_OF_LONG * (n * n);	//	Multiplied by 4 to account for int
-
-	if (r <= tilesize)
-		loop_fw(xrow, xcol, urow, ucol, vrow, vcol, n, floyd);
+	if (n <= PARALLEL_ITERATIVE_THRESHOLD)
+		serial_fw(X, U, V, xrow, xcol, urow, ucol, vrow, vcol, n);
 	else {
-		cilk_spawn D_loop(xrow, xcol, urow, ucol, vrow, vcol, (n/2), floyd);
-					D_loop(xrow, xcol + (n/2), urow, ucol, vrow, vcol + (n/2), (n/2), floyd);
-					D_loop(xrow + (n/2), xcol, urow + (n/2), ucol, vrow, vcol, (n/2), floyd);
-					D_loop(xrow + (n/2), xcol + (n/2), urow + (n/2), ucol, vrow, vcol + (n/2), (n/2), floyd);
+		cilk_spawn host_RAM_D_fw(X, U, V, xrow, xcol, urow, ucol, vrow, vcol, (n/2));
+					host_RAM_D_fw(X, U, V, xrow, xcol + (n/2), urow, ucol, vrow, vcol + (n/2), (n/2));
+					host_RAM_D_fw(X, U, V, xrow + (n/2), xcol, urow + (n/2), ucol, vrow, vcol, (n/2));
+					host_RAM_D_fw(X, U, V, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol, vrow, vcol + (n/2), (n/2));
 		cilk_sync;
 
-		cilk_spawn D_loop(xrow, xcol, urow, ucol + (n/2), vrow + (n/2), vcol, (n/2), floyd);
-					D_loop(xrow, xcol + (n/2), urow, ucol + (n/2), vrow + (n/2), vcol + (n/2), (n/2), floyd);
-					D_loop(xrow + (n/2), xcol, urow + (n/2), ucol + (n/2), vrow + (n/2), vcol, (n/2), floyd);
-					D_loop(xrow + (n/2), xcol + (n/2), urow + (n/2), ucol + (n/2), vrow + (n/2), vcol + (n/2), (n/2), floyd);
+		cilk_spawn host_RAM_D_fw(X, U, V, xrow, xcol, urow, ucol + (n/2), vrow + (n/2), vcol, (n/2));
+					host_RAM_D_fw(X, U, V, xrow, xcol + (n/2), urow, ucol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
+					host_RAM_D_fw(X, U, V, xrow + (n/2), xcol, urow + (n/2), ucol + (n/2), vrow + (n/2), vcol, (n/2));
+					host_RAM_D_fw(X, U, V, xrow + (n/2), xcol + (n/2), urow + (n/2), ucol + (n/2), vrow + (n/2), vcol + (n/2), (n/2));
 		cilk_sync;
 	}
 }
 
-int main(int argc, char *argv[]) {
 
-	if (argc != 3) {
-		cout << "Inadequate parameters, provide input in the format "
-				"./a.out <input_file> <output_file>" << endl;
-		exit(1);
-	}
+/**
+ * Read from stxxl vector to RAM vector
+ */
+void read_to_RAM(fw_vector_type& zfloyd, unsigned long *X, uint64_t row, uint64_t col, uint64_t n)
+{
+    cout << "Reading from row " << row << " and col " << col << " of size " << n << " from disk" << endl; 
+    uint64_t i = 0;
+    uint64_t begin_pos = encode2D_to_morton_64bit(row, col);
+    uint64_t end_pos = begin_pos + (n*n) - 1;
+    for (fw_vector_type::const_iterator it = zfloyd.begin() + begin_pos; it != zfloyd.begin() + end_pos + 1; ++it, ++i) {
+        X[i] = *it;
+    }
+}
 
-	typedef stxxl::VECTOR_GENERATOR<unsigned long, 1, 1, MEMORY, stxxl::RC, stxxl::lru>::result vector;
-	vector floyd;
-	int row = 0, col = 0, index = 0;
-	long result = 0;
-	
-	string ipfile_name(argv[1]);
-	string opfile_name(argv[2]);
+/**
+ * Write RAM data to stxxl vector
+ */
+void write_to_disk(fw_vector_type& zfloyd, unsigned long *X, uint64_t row, uint64_t col, uint64_t n)
+{   
+    cout << "Writing from row " << row << " and col " << col << " of size " << n << " to disk" << endl; 
+    uint64_t i = 0;
+    uint64_t begin_pos = encode2D_to_morton_64bit(row, col);
+    uint64_t end_pos = begin_pos + (n*n) - 1;
+    for (fw_vector_type::iterator it = zfloyd.begin() + begin_pos; it != zfloyd.begin() + end_pos + 1; ++it, ++i) {
+        *it = X[i];
+    }
+}
 
-	ifstream ipfile(ipfile_name);
-	ofstream opfile(opfile_name);
+/*
+ * Disk code
+ */
+void host_disk_A_fw(fw_vector_type& zfloyd,
+                    uint64_t xrow, uint64_t xcol, uint64_t n)
+{
+    // Base case - If possible, read the entire array into RAM
+    if (n <= ALLOWED_SIZE_RAM) {
+        unsigned long *X = new unsigned long[n*n];
+        read_to_RAM(zfloyd, X, xrow, xcol, n);
+        host_RAM_A_fw(X, xrow, xcol, n);
+        write_to_disk(zfloyd, X, xrow, xcol, n);
+        delete [] X;
+    }
+    // If not, split into r chunks
+    else {
+        uint64_t r = n / ALLOWED_SIZE_RAM;
+        uint64_t m = n / r;
+        cout << "Splitting disk matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
 
-	string line;
+        // Our RAM size is chosen such that it holds upto 3 times the allowed size
+        unsigned long *W  = new unsigned long[m*m];
+        unsigned long *R1 = new unsigned long[m*m];
+        unsigned long *R2 = new unsigned long[m*m];
 
-	cout << "START INPUT IN Z-MORTON LAYOUT" << endl;
-	while (getline(ipfile,line)) {
-		stringstream ss(line);
-		string buf;
-		while (ss >> buf && index < (SIZE * SIZE)) {
-			result = stol(buf);
-			floyd.push_back(result);
-			index++;
-		}	
-	}
-	cout << "FINISHED INPUT IN Z-MORTON LAYOUT : " << index << endl;
-	// Start function
-	A_loop(0,0, SIZE, floyd);
-	cout << "FLOYD done\n";	
+        for (uint64_t k = 0; k < r; k++) {
+            cout << "k " << k << endl;
 
-	for (int i = 0; i < (SIZE); i++) {
-		for (int j = 0; j < (SIZE); j++) {
-			if (j != 0) {
-				opfile << " ";
-			}
-			opfile << floyd[encode2D_to_morton_32bit(i,j)];
+            // Step 1: A_step - A(X_kk, U_kk, V_kk), X,U,V are the same
+            cout << "A\n";
+            read_to_RAM(zfloyd, W, xrow + (m*k), xcol + m*k, m);
+            host_RAM_A_fw(W, 0, 0, m);
+            write_to_disk(zfloyd, W, xrow + (m*k), xcol + m*k, m);
+
+            // Step 2: B_C_step - B(X_kj, U_kk, V_kj), C(X_ik, U_ik, V_kk)
+            // Note that B's U_kk and C's V_kk are the same
+            // For B, X and V are the same, for C, X and U are the same
+            cout << "B\n";
+            read_to_RAM(zfloyd, R1, xrow + (m*k), xcol + m*k, m);
+            for (uint64_t j = 0; j < r; j++) {
+                if (j != k) {
+                    // DEBUG: cout << "Bj " << j << endl;
+                    read_to_RAM(zfloyd, W, xrow + (m*k), xcol + m*j, m);
+                    host_RAM_B_fw(W, R1, 0, 0, 0, 0, m);
+                    write_to_disk(zfloyd, W, xrow + (m*k), xcol + m*j, m);
+                }
+            }
+            cout << "C\n";
+            for (uint64_t i = 0; i < r; i++) {
+                if (i != k) {
+                    // DEBUG: cout << "Ci " << i << endl;
+                    read_to_RAM(zfloyd, W, xrow + (m*i), xcol + m*k, m);
+                    host_RAM_C_fw(W, R1, 0, 0, 0, 0, m);
+                    write_to_disk(zfloyd, W, xrow + (m*i), xcol + m*k, m);
+                }
+            }
+
+            // Step 3: D_step - D(X_ij, U_ik, V_kj)
+            cout << "D\n";
+            for (uint64_t i = 0; i < r; i++) {
+                if (i != k) {
+                    // U_ik is same for all j
+                    read_to_RAM(zfloyd, R1, xrow + (m*i), xcol + m*k, m);
+                    for (uint64_t j = 0; j < r; j++) {
+                        if (j != k) {
+                            // DEBUG: cout << "Di " << i << ", Dj " << j << endl; 
+                            read_to_RAM(zfloyd, R2, xrow + (m*k), xcol + m*j, m);
+                            read_to_RAM(zfloyd, W, xrow + (m*i), xcol + m*j, m);
+                            host_RAM_D_fw(W, R1, R2, 0, 0, 0, 0, 0, 0, m);
+                            write_to_disk(zfloyd, W, xrow + (m*i), xcol + m*j, m);
+                        }
+                    }
+                }
+            }
+
+        }
+
+        delete [] W;
+        delete [] R1;
+        delete [] R2;
+    }
+}
+
+
+int main(int argc, char *argv[])
+{
+    if (argc != 3) {
+        cout << "Inadequate parameters, provide input in the format "
+                "./fw_gpu <z_morton_input_file>" << endl;
+        exit(1);
+    }
+    
+    fw_vector_type zfloyd;
+    string inp_filename(argv[1]);
+	string op_filename(argv[2]);
+    ifstream inp_file(inp_filename);
+	ofstream op_file(op_filename);
+     
+    string line;
+    uint64_t full_size = 0;
+    unsigned long value = 0;
+    op_file << "Reading input file, " << inp_filename << endl;
+    while (getline(inp_file, line)) {
+        stringstream ss(line);
+        string buf;
+        while (ss >> buf) {
+            if (buf == "inf")
+                value = INFINITY_LENGTH;
+            else
+                value = stol(buf);
+            zfloyd.push_back(value);
+            full_size++;
+        }
+    }
+    op_file << "Finished reading input file, full_size=" << full_size << endl;
+    inp_file.close();
+    
+    ///*
+    op_file << "Array before execution in Z-morton vector format: " << endl;
+    for (fw_vector_type::const_iterator it = zfloyd.begin(); it != zfloyd.end(); ++it)
+        op_file << *it << " ";
+    op_file << endl;
+
+    uint64_t n = sqrt(full_size);
+    host_disk_A_fw(zfloyd, 0, 0, n);
+
+    op_file << "Array after execution in Z-morton vector format: " << endl;
+    for (fw_vector_type::const_iterator it = zfloyd.begin(); it != zfloyd.end(); ++it)
+		op_file << *it << " ";
+    op_file << endl;
+
+	op_file << "Array in matrix format " << endl;
+	for (uint64_t i = 0; i < n; i++) {
+		for (uint64_t j = 0; j < n; j++) {
+			if (j != 0)
+				op_file << " ";
+			op_file << zfloyd[encode2D_to_morton_64bit(i,j)];
 		}
-		opfile << endl;
+		op_file << endl;
 	}
+	op_file.close();
+    //*/
+    /*    
+    unsigned long *X = new unsigned long[full_size];
+    int index = 0;
+    for (fw_vector_type::const_iterator it = zfloyd.begin(); it != zfloyd.end(); ++it, ++index) {
+        X[index] = *it;
+    }
+    cout << endl;
 
-	ipfile.close();
-	opfile.close();
-	return 0;
+    for (int i = 0; i < full_size ; ++i) {
+        cout << X[i] << " ";
+    }
+    cout << endl;
+    serial_fw(X, X, X, 0, 0, 0, 0, 0, 0, sqrt(full_size));
+    for (int i = 0; i < full_size ; ++i) {
+        cout << X[i] << " ";
+    }
+    cout << endl;
+
+    delete [] X;
+    */
+
+    return 0;
+    //return kernel_wrapper();	
 }
