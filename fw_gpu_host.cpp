@@ -4,6 +4,7 @@
 #include <ctime>
 #include <algorithm>
 #include <math.h>
+#include <stdint.h>
 
 #include <stxxl/vector>
 
@@ -17,7 +18,7 @@ using namespace std;
 #define ALLOWED_SIZE_RAM        (1 << 3) // use 11
 #define ALLOWED_SIZE_GPU_GLOBAL (1 << 2) // use 8
 #define INFINITY_LENGTH         (1 << 20)
-
+#define HOST_MEMORY_TYPE        PINNED_HOST_MEMORY
 
 /**
  * STXXL Configurations
@@ -102,6 +103,7 @@ void host_GPU_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
 {
     serial_fw(X, U, V, xrow, xcol, urow, ucol, vrow, vcol, n);
 }
+
 
 /**
  * RAM code
@@ -272,9 +274,16 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
         cout << "Splitting disk matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
 
         // Our RAM size is chosen such that it holds upto 3 times the allowed size
+#ifdef MY_MAC
         unsigned long *W  = new unsigned long[m*m];
         unsigned long *R1 = new unsigned long[m*m];
         unsigned long *R2 = new unsigned long[m*m];
+#else
+        cout << "Allocating Host memory...\n";
+        unsigned long *W  = (unsigned long *)mallocCudaHostMemory(m*m*sizeof(unsigned long), HOST_MEMORY_TYPE);
+        unsigned long *R1 = (unsigned long *)mallocCudaHostMemory(m*m*sizeof(unsigned long), HOST_MEMORY_TYPE);
+        unsigned long *R2 = (unsigned long *)mallocCudaHostMemory(m*m*sizeof(unsigned long), HOST_MEMORY_TYPE);
+#endif
 
         for (uint64_t k = 0; k < r; k++) {
             cout << "k " << k << endl;
@@ -327,10 +336,15 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
             }
 
         }
-
+#ifdef MY_MAC
         delete [] W;
         delete [] R1;
         delete [] R2;
+#else
+        freeCudaHostMemory((void *)W,  HOST_MEMORY_TYPE);
+        freeCudaHostMemory((void *)R1, HOST_MEMORY_TYPE);
+        freeCudaHostMemory((void *)R2, HOST_MEMORY_TYPE);
+#endif
     }
 }
 

@@ -1,5 +1,5 @@
 #include <iostream>
-
+#include <stdint.h>
 #include <cuda_runtime.h>
 
 #include "fw_gpu_common.h"
@@ -17,6 +17,29 @@ __global__ void vectorAdd(const float *A, const float *B, float *C, int numEleme
 	{
 		C[i] = A[i] + B[i];
 	}
+}
+
+/*
+ * GPU memory allocator
+ *
+ * Allocates "pinned" host memory if type is pinned, else normal host memory
+ */
+void *mallocCudaHostMemory(unsigned int bytes, int type)
+{
+    void *memory;
+    if (type == PINNED_HOST_MEMORY)
+        cudaMallocHost((void**) &memory, bytes);
+    else
+        memory = malloc(bytes);
+    return memory;
+}
+
+void freeCudaHostMemory(void *memory, int type)
+{
+    if (type == PINNED_HOST_MEMORY)
+       cudaFreeHost(memory);
+    else
+        free(memory);
 }
 
 int kernel_wrapper()
