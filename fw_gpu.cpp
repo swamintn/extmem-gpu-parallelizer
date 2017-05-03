@@ -14,16 +14,17 @@ using namespace std;
 /**
  * Different memory hierarchy configurations
  */
-#define ALLOWED_SIZE_RAM (1 << 3)
-#define INFINITY_LENGTH (1 << 20)
+#define ALLOWED_SIZE_RAM        (1 << 3) // use 11
+#define ALLOWED_SIZE_GPU_GLOBAL (1 << 2) // use 8
+#define INFINITY_LENGTH         (1 << 20)
 
 
 /**
  * STXXL Configurations
  */
 #define BLOCKS_PER_PAGE     1
-#define PAGES_IN_CACHE      1
-#define BLOCK_SIZE_IN_BYTES 1024 // 1KB
+#define PAGES_IN_CACHE      3
+#define BLOCK_SIZE_IN_BYTES 8 * ALLOWED_SIZE_RAM * ALLOWED_SIZE_RAM // 32 * 3 MB
 
 typedef stxxl::VECTOR_GENERATOR<unsigned long, BLOCKS_PER_PAGE, PAGES_IN_CACHE,
                                 BLOCK_SIZE_IN_BYTES,
@@ -75,31 +76,150 @@ void serial_fw(unsigned long *X, unsigned long *U, unsigned long *V,
     }
 }
 
-/**
- * RAM code
+/*
+ * GPU launcher code
  */
-void host_RAM_A_fw(unsigned long *X,
+void host_GPU_A_fw(unsigned long *X,
                    uint64_t xrow, uint64_t xcol, uint64_t n)
 {
     serial_fw(X, X, X, xrow, xcol, xrow, xcol, xrow, xcol, n);
 }
 
-void host_RAM_B_fw(unsigned long *X, unsigned long *U,
+void host_GPU_B_fw(unsigned long *X, unsigned long *U,
                    uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t n)
 {
     serial_fw(X, U, X, xrow, xcol, urow, ucol, xrow, xcol, n);
 }
 
-void host_RAM_C_fw(unsigned long *X, unsigned long *V,
+void host_GPU_C_fw(unsigned long *X, unsigned long *V,
                    uint64_t xrow, uint64_t xcol, uint64_t vrow, uint64_t vcol, uint64_t n)
 {
     serial_fw(X, X, V, xrow, xcol, xrow, xcol, vrow, vcol, n);
 }
 
-void host_RAM_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
+void host_GPU_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
                    uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow, uint64_t vcol, uint64_t n)
 {
     serial_fw(X, U, V, xrow, xcol, urow, ucol, vrow, vcol, n);
+}
+
+/**
+ * RAM code
+ */
+void host_RAM_A_fw(unsigned long *X,
+                   uint64_t xrow, uint64_t xcol, uint64_t n);
+void host_RAM_B_fw(unsigned long *X, unsigned long *U,
+                   uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t n);
+void host_RAM_C_fw(unsigned long *X, unsigned long *V,
+                   uint64_t xrow, uint64_t xcol, uint64_t vrow, uint64_t vcol, uint64_t n);
+void host_RAM_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
+                   uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow, uint64_t vcol, uint64_t n);
+
+void host_RAM_A_fw(unsigned long *X,
+                   uint64_t xrow, uint64_t xcol, uint64_t n)
+{
+    if (n <= ALLOWED_SIZE_GPU_GLOBAL) {
+        host_GPU_A_fw(X, xrow, xcol, n);
+    }
+    else {
+        uint64_t r = n / ALLOWED_SIZE_GPU_GLOBAL;
+        uint64_t m = n / r;
+        cout << "A_fw: Splitting RAM matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
+
+        for (uint64_t k = 0; k < r; k++) {
+            host_GPU_A_fw(X, xrow + m*k, xcol + m*k, m);
+            for (uint64_t j = 0; j < r; j++) {
+                if (j != k) {
+                    host_GPU_B_fw(X, X, xrow + m*k, xcol + m*j, xrow + m*k, xcol + m*k, m);
+                }
+            }
+            for (uint64_t i = 0; i < r; i++) {
+                if (i != k) {
+                    host_GPU_C_fw(X, X, xrow + m*i, xcol + m*k, xrow + m*k, xcol + m*k, m);
+                }
+            }
+            for (uint64_t i = 0; i < r; i++) {
+                for (uint64_t j = 0; j < r; j++) {
+                    if (i != k && j != k) {
+                        host_GPU_D_fw(X, X, X, xrow + m*i, xcol + m*j, xrow + m*i, xcol + m*k, xrow + m*k, xcol + m*j, m);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void host_RAM_B_fw(unsigned long *X, unsigned long *U,
+                   uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t n)
+{
+    if (n <= ALLOWED_SIZE_GPU_GLOBAL) {
+        host_GPU_B_fw(X, U, xrow, xcol, urow, ucol, n);
+    }
+    else {
+        uint64_t r = n / ALLOWED_SIZE_GPU_GLOBAL;
+        uint64_t m = n / r;
+        cout << "B_fw: Splitting RAM matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
+
+        for (uint64_t k = 0; k < r; k++) {
+            for (uint64_t j = 0; j < r; j++) {
+                host_GPU_B_fw(X, U, xrow + m*k, xcol + m*j, urow + m*k, ucol + m*k, m);
+            }
+            for (uint64_t i = 0; i < r; i++) {
+                for (uint64_t j = 0; j < r; j++) {
+                    if (i != k) {
+                        host_GPU_D_fw(X, U, X, xrow + m*i, xcol + m*j, urow + m*i, ucol + m*k, xrow + m*k, xcol + m*j, m);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void host_RAM_C_fw(unsigned long *X, unsigned long *V,
+                   uint64_t xrow, uint64_t xcol, uint64_t vrow, uint64_t vcol, uint64_t n)
+{
+    if (n <= ALLOWED_SIZE_GPU_GLOBAL) {
+        host_GPU_C_fw(X, V, xrow, xcol, vrow, vcol, n);
+    }
+    else {
+        uint64_t r = n / ALLOWED_SIZE_GPU_GLOBAL;
+        uint64_t m = n / r;
+        cout << "C_fw: Splitting RAM matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
+
+        for (uint64_t k = 0; k < r; k++) {
+            for (uint64_t i = 0; i < r; i++) {
+                host_GPU_C_fw(X, V, xrow + m*i, xcol + m*k, vrow + m*k, vcol + m*k, m);
+            }
+            for (uint64_t i = 0; i < r; i++) {
+                for (uint64_t j = 0; j < r; j++) {
+                    if (j != k) {
+                        host_GPU_D_fw(X, X, V, xrow + m*i, xcol + m*j, xrow + m*i, xcol + m*k, vrow + m*k, vcol + m*j, m);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void host_RAM_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
+                   uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow, uint64_t vcol, uint64_t n)
+{
+    if (n <= ALLOWED_SIZE_GPU_GLOBAL) {
+        host_GPU_D_fw(X, U, V, xrow, xcol, urow, ucol, vrow, vcol, n);
+    }
+    else {
+        uint64_t r = n / ALLOWED_SIZE_GPU_GLOBAL;
+        uint64_t m = n / r;
+        cout << "D_fw: Splitting RAM matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
+
+        for (uint64_t k = 0; k < r; k++) {
+            for (uint64_t i = 0; i < r; i++) {
+                for (uint64_t j = 0; j < r; j++) {
+                    host_GPU_D_fw(X, U, V, xrow + m*i, xcol + m*j, urow + m*i, ucol + m*k, vrow + m*k, vcol + m*j, m);
+                }
+            }
+        }
+    }
 }
 
 
