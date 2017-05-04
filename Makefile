@@ -10,8 +10,8 @@ compile-fw-gpu-host: check-stxxl-lib
 	icpc -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES -W -Wall -pedantic -Wno-long-long -std=c++0x -fopenmp -O3 -DNDEBUG -I${STXXL_LIB}/include -I${STXXL_LIB}/build/include -L/opt/apps/cuda/6.5/lib64 -lcuda -lcudart -o fw_gpu_host.o -c fw_gpu_host.cpp
 
 # For testing
-build-fw-gpu-host: check-stxxl-lib
-	icpc -DMY_MAC -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES -W -Wall -pedantic -Wno-long-long -std=c++0x -fopenmp -O3 -DNDEBUG -I${STXXL_LIB}/include -I${STXXL_LIB}/build/include -L/opt/apps/cuda/6.5/lib64 -lcuda -lcudart -o fw_gpu_host.o -c fw_gpu_host.cpp
+build-fw-gpu-host-no-gpu: check-stxxl-lib
+	icpc -DNO_GPU -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGE_FILES -W -Wall -pedantic -Wno-long-long -std=c++0x -fopenmp -O3 -DNDEBUG -I${STXXL_LIB}/include -I${STXXL_LIB}/build/include -L/opt/apps/cuda/6.5/lib64 -lcuda -lcudart -o fw_gpu_host.o -c fw_gpu_host.cpp
 	icpc -W -Wall -pedantic -Wno-long-long -std=c++0x -fopenmp -O3 -DNDEBUG fw_gpu_host.o -o fw_gpu -rdynamic ${STXXL_LIB}/build/lib/libstxxl.a -lpthread
 # End
 

@@ -21,6 +21,9 @@ typedef stxxl::VECTOR_GENERATOR<unsigned long, BLOCKS_PER_PAGE, PAGES_IN_CACHE,
                                 BLOCK_SIZE_IN_BYTES,
                                 stxxl::RC, stxxl::lru>::result fw_vector_type;
 
+#ifdef NO_GPU
+/* Non-GPU base-case code to be used if GPU is not present in the machine */
+
 /** 
  * Encoding and decoding Morton codes
  * (Taken from https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/)
@@ -67,7 +70,6 @@ void serial_fw(unsigned long *X, unsigned long *U, unsigned long *V,
     }
 }
 
-#ifdef MY_MAC
 /*
  * RAM launcher code
  */
@@ -132,7 +134,7 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
 {
     // Base case - If possible, read the entire array into RAM
     if (n <= ALLOWED_SIZE_RAM) {
-#ifdef MY_MAC
+#ifdef NO_GPU
         unsigned long *X = new unsigned long[n*n];
 #else
         unsigned long *X = (unsigned long *)mallocCudaHostMemory(n*n*sizeof(unsigned long), HOST_MEMORY_TYPE);
@@ -140,7 +142,7 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
         read_to_RAM(zfloyd, X, xrow, xcol, n);
         host_RAM_A_fw(X, xrow, xcol, n);
         write_to_disk(zfloyd, X, xrow, xcol, n);
-#ifdef MY_MAC
+#ifdef NO_GPU
         delete [] X;
 #else
         freeCudaHostMemory((void *)X,  HOST_MEMORY_TYPE);
@@ -153,7 +155,7 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
         cout << "Splitting disk matrix into r=" << r << " chunks, each submatrix size, m=" << m << endl;
 
         // Our RAM size is chosen such that it holds upto 3 times the allowed size
-#ifdef MY_MAC
+#ifdef NO_GPU
         unsigned long *W  = new unsigned long[m*m];
         unsigned long *R1 = new unsigned long[m*m];
         unsigned long *R2 = new unsigned long[m*m];
@@ -172,15 +174,13 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
             read_to_RAM(zfloyd, W, xrow + (m*k), xcol + m*k, m);
             host_RAM_A_fw(W, 0, 0, m);
             // Don't write to RAM yet, as B and C can use this directly
-            // write_to_disk(zfloyd, W, xrow + (m*k), xcol + m*k, m);
 
             // Step 2: B_C_step - B(X_kj, U_kk, V_kj), C(X_ik, U_ik, V_kk)
             // Note that B's U_kk and C's V_kk are the same
-            // For B, X and V are the same, for C, X and U are the same
-            cout << "B\n";
+            // For B, X and V are the same, for C, X and U are the same.
             // We already have B's U_kk/C's V_kk in RAM, put it in R1
+            cout << "B\n";
             unsigned long *T = R1; R1 = W; W = T;
-            read_to_RAM(zfloyd, R1, xrow + (m*k), xcol + m*k, m);
             for (uint64_t j = 0; j < r; j++) {
                 if (j != k) {
                     // DEBUG: cout << "Bj " << j << endl;
@@ -220,7 +220,7 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
             }
 
         }
-#ifdef MY_MAC
+#ifdef NO_GPU
         delete [] W;
         delete [] R1;
         delete [] R2;
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
     for (fw_vector_type::const_iterator it = zfloyd.begin(); it != zfloyd.end(); ++it)
         cout << *it << " ";
     cout << endl;
-
+    
     uint64_t n = sqrt(full_size);
     host_disk_A_fw(zfloyd, 0, 0, n);
 
