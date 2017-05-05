@@ -7,8 +7,9 @@
 /**
  * Different memory hierarchy configurations
  */
-#define ALLOWED_SIZE_RAM        (1 << 3) // use 11
-#define ALLOWED_SIZE_GPU_GLOBAL (1 << 2) // use 8
+#define ALLOWED_SIZE_RAM        (1 << 11) // use 11
+#define ALLOWED_SIZE_GPU_GLOBAL (1 << 9)  // use 8
+#define ALLOWED_SIZE_GPU_SHARED (1 << 4)  // use 4
 #define INFINITY_LENGTH         (1 << 20)
 
 #define NORMAL_HOST_MEMORY      0
