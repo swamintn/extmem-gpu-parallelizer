@@ -24,13 +24,15 @@ void A_par(int M, long (*X)[SIZE], int start_row, int start_col, int end_row, in
 
 // X, U and V are the 3 submatrices. X is a square submatrix, while U and V are upper triangular submatrices.
 // X, U and V are denoted by different start-row and start-column numbers.
-// All X[i][j] can be computed in parallel as they don't depend on any other X[i][j]
+// All X[i][j] can be computed in parallel as they don't depend on any other
+// X[i][j], and a particular cell X[i][j] is computed only once across all
+// "steps" and all iterations of the loop indexed by "i"
 void B_par(int M, long (*X)[SIZE], int start_row_X, int start_col_X, int end_row_X, int end_col_X,
 	   int start_row_U, int start_col_U, int end_row_U, int end_col_U,
 	   int start_row_V, int start_col_V, int end_row_V, int end_col_V) {
 
-	for (int steps = M-1; steps >= 0; steps--) {
-	    for (int i = steps; i <= M-1; i++) {
+	cilk_for (int steps = M-1; steps >= 0; steps--) {
+	    cilk_for (int i = steps; i <= M-1; i++) {
 	        int j = i - steps;
 
 			for (int k = i; k <= M - 1; k++) {
