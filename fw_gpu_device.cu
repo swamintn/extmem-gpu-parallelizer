@@ -723,6 +723,9 @@ void host_RAM_D_fw(unsigned long *X, unsigned long *U, unsigned long *V,
                 }
             }
         }
+        cudaFree(G_W);
+        cudaFree(G_R1);
+        cudaFree(G_R2);
     }
 }
 
