@@ -27,7 +27,7 @@ using namespace std;
  */
 #define BLOCKS_PER_PAGE     1
 #define PAGES_IN_CACHE      3
-#define BLOCK_SIZE_IN_BYTES 8 * ALLOWED_SIZE_RAM * ALLOWED_SIZE_RAM // 32 * 3 MB
+#define BLOCK_SIZE_IN_BYTES sizeof(unsigned long) * ALLOWED_SIZE_RAM * ALLOWED_SIZE_RAM
 
 typedef stxxl::VECTOR_GENERATOR<unsigned long, BLOCKS_PER_PAGE, PAGES_IN_CACHE,
                                 BLOCK_SIZE_IN_BYTES,
@@ -256,13 +256,20 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
             //cout << "A\n";
             read_to_RAM(zfloyd, W, xrow + (m*k), xcol + m*k, m);
             host_RAM_A_fw(W, 0, 0, m);
-            write_to_disk(zfloyd, W, xrow + (m*k), xcol + m*k, m);
+
+		// Avoiding the 2 unnecessary "write to disk and read again without any intermediate operations"
+            //write_to_disk(zfloyd, W, xrow + (m*k), xcol + m*k, m);
 
             // Step 2: B_C_step - B(X_kj, U_kk, V_kj), C(X_ik, U_ik, V_kk)
             // Note that B's U_kk and C's V_kk are the same
             // For B, X and V are the same, for C, X and U are the same
             //cout << "B\n";
-            read_to_RAM(zfloyd, R1, xrow + (m*k), xcol + m*k, m);
+            //read_to_RAM(zfloyd, R1, xrow + (m*k), xcol + m*k, m);
+
+	    // We have to simulate reading from R1, 
+            unsigned long *temp = W;
+	    W = R1;
+	    R1 = temp;
             for (uint64_t j = 0; j < r; j++) {
                 if (j != k) {
                     // DEBUG: cout << "Bj " << j << endl;
@@ -280,7 +287,8 @@ void host_disk_A_fw(fw_vector_type& zfloyd,
                     write_to_disk(zfloyd, W, xrow + (m*i), xcol + m*k, m);
                 }
             }
-
+		// Since, W had been swapped with R1 and we actually have to write to W
+            write_to_disk(zfloyd, R1, xrow + (m*k), xcol + m*k, m);
             // Step 3: D_step - D(X_ij, U_ik, V_kj)
             //cout << "D\n";
             for (uint64_t i = 0; i < r; i++) {
