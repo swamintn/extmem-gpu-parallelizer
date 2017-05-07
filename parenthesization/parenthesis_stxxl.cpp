@@ -77,7 +77,11 @@ void host_RAM_A_par( unsigned long *X, uint64_t xrow, uint64_t xcol, uint64_t n)
 	    	cilk_for (int i = 0; i <= n - steps - 1; i++) {
 				int j = steps + i;
 	        	for (int k = i+1; k <= j; k++) {
-	            	X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j], X[xrow + i][xcol + k] + X[xrow + k][xcol + j]);
+					uint64_t cur = encode2D_to_morton_64bit(xrow + i, xcol + j);
+					uint64_t first = encode2D_to_morton_64bit(xrow + i, xcol + k);
+					uint64_t second = encode2D_to_morton_64bit(xrow + k, xcol + j);
+	            	//X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j], X[xrow + i][xcol + k] + X[xrow + k][xcol + j]);
+	            	X[cur] = min(X[cur], X[first] + X[second]);
 	        	}
 	    	}	
         }
@@ -106,12 +110,18 @@ void host_RAM_B_par( unsigned long *X, unsigned long *U, unsigned long *V,
 		    cilk_for (int i = steps; i <= n-1; i++) {
 	    	    int j = i - steps;
 				for (int k = i; k <= n - 1; k++) {
-				    X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j],
-								 X[urow + i][ucol + k] + X[vrow + k][vcol + j]);
+					uint64_t cur = encode2D_to_morton_64bit(xrow + i, xcol + j);
+					uint64_t first = encode2D_to_morton_64bit(urow + i, ucol + k);
+					uint64_t second = encode2D_to_morton_64bit(vrow + k, vcol + j);
+				    //X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j], X[urow + i][ucol + k] + X[vrow + k][vcol + j]);
+					X[cur] = min(X[cur], U[first] + V[second]);
 				}
 				for (int k = 0; k <= j; k++) {
-		    		X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j],
-								 X[urow + i][ucol + k] + X[vrow + k][vcol + j]);
+					uint64_t cur = encode2D_to_morton_64bit(xrow + i, xcol + j);
+					uint64_t first = encode2D_to_morton_64bit(urow + i, ucol + k);
+					uint64_t second = encode2D_to_morton_64bit(vrow + k, vcol + j);
+		    		//X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j], X[urow + i][ucol + k] + X[vrow + k][vcol + j]);
+					X[cur] = min(X[cur], U[first] + V[second]);
 				}
 	    	}
 		}
@@ -164,8 +174,11 @@ void host_RAM_C_par( unsigned long *X, unsigned long *U, unsigned long *V,
     	cilk_for (int i = 0; i < n; i++) {
 	    	cilk_for (int j = 0; j < n; j++) {
 				for (int k = 0; k < n; k++) {
-					X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j],
-								 X[urow + i][ucol + k] + X[vrow + k][vcol + j]);	
+					uint64_t cur = encode2D_to_morton_64bit(xrow + i, xcol + j);
+					uint64_t first = encode2D_to_morton_64bit(urow + i, ucol + k);
+					uint64_t second = encode2D_to_morton_64bit(vrow + k, vcol + j);
+					//X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j], X[urow + i][ucol + k] + X[vrow + k][vcol + j]);	
+					X[cur] = min(X[cur], U[first] + V[second]);
 				}
 	    	}
 		}
