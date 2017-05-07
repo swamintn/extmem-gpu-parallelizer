@@ -1,5 +1,5 @@
 CC=icpc
-CFLAGS=-std=c++11 -O0 
+CFLAGS=-std=c++11 -O0 -lrt 
 
 serial:
 	$(CC) helper.cpp serial_parenthesis.cpp $(CFLAGS) -o serial_parenthesis_2_power_13_maxcores
