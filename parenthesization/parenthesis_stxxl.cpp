@@ -20,7 +20,7 @@ using namespace std;
  */
 #define ALLOWED_SIZE_RAM (1 << 11)
 #define INFINITY_LENGTH (1 << 20)
-#define PARALLEL_ITERATIVE_THRESHOLD 64
+#define PARALLEL_ITERATIVE_THRESHOLD 16
 
 /**
  * STXXL Configurations
@@ -33,13 +33,13 @@ typedef stxxl::VECTOR_GENERATOR<unsigned long, BLOCKS_PER_PAGE, PAGES_IN_CACHE,
                                 BLOCK_SIZE_IN_BYTES,
                                 stxxl::RC, stxxl::lru>::result par_vector_type;
 
-void host_RAM_A_fw( unsigned long *X, uint64_t x_row, uint64_t x_col, uint64_t n);
+void host_RAM_A_par( unsigned long *X, uint64_t xrow, uint64_t xcol, uint64_t n);
 
-void host_RAM_B_fw( unsigned long *X, unsigned long *U, unsigned long *V,
+void host_RAM_B_par( unsigned long *X, unsigned long *U, unsigned long *V,
 uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow,
 uint64_t vcol, uint64_t n);
 
-void host_RAM_C_fw( unsigned long *X, unsigned long *U, unsigned long *V,
+void host_RAM_C_par( unsigned long *X, unsigned long *U, unsigned long *V,
 uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow,
 uint64_t vcol, uint64_t n);
 
@@ -71,20 +71,142 @@ uint64_t encode2D_to_morton_64bit(uint64_t x, uint64_t y)
 /*
  * RAM code
  */
-void host_RAM_A_fw( unsigned long *X, uint64_t x_row, uint64_t x_col, uint64_t n)
+void host_RAM_A_par( unsigned long *X, uint64_t xrow, uint64_t xcol, uint64_t n) {
+    if (n <= PARALLEL_ITERATIVE_THRESHOLD) {
+    	for (int steps = 2; steps <= n-1; steps++) {
+	    	cilk_for (int i = 0; i <= n - steps - 1; i++) {
+				int j = steps + i;
+	        	for (int k = i+1; k <= j; k++) {
+	            	X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j], X[xrow + i][xcol + k] + X[xrow + k][xcol + j]);
+	        	}
+	    	}	
+        }
+    } else {
 
+		cilk_spawn host_RAM_A_par(X, xrow, xcol, n/2);				// X-11
 
-void host_RAM_B_fw( unsigned long *X, unsigned long *U, unsigned long *V,
+		host_RAM_A_par(X, xrow + (n/2), xcol + (n/2), n/2);  		// X-22
+
+		cilk_sync;
+
+		host_RAM_B_par(X, X, X, xrow, xcol + (n/2), 				// X-12
+						xrow, xcol, 								// X-11
+						xrow + (n/2), xcol + (n/2), n/2);			// X-22
+    }
+
+    return;
+}
+
+void host_RAM_B_par( unsigned long *X, unsigned long *U, unsigned long *V,
 					uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow,
 					uint64_t vcol, uint64_t n) {
 
+    if (n <= PARALLEL_ITERATIVE_THRESHOLD) {
+		cilk_for (int steps = n-1; steps >= 0; steps--) {
+		    cilk_for (int i = steps; i <= n-1; i++) {
+	    	    int j = i - steps;
+				for (int k = i; k <= n - 1; k++) {
+				    X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j],
+								 X[urow + i][ucol + k] + X[vrow + k][vcol + j]);
+				}
+				for (int k = 0; k <= j; k++) {
+		    		X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j],
+								 X[urow + i][ucol + k] + X[vrow + k][vcol + j]);
+				}
+	    	}
+		}
+    } else {
+
+    	host_RAM_B_par(X, U, V, xrow + (n/2), xcol,				 			// X-21
+				urow + (n/2), ucol + (n/2),									// U-22
+				vrow, vcol, (n/2));											// V-11
+
+		cilk_spawn host_RAM_C_par(X, U, V, xrow, xcol,						// X-11
+									urow, ucol + (n/2),						// U-12
+									xrow + (n/2), xcol, (n/2));				// X-21
+				
+					host_RAM_C_par(X, U, V, xrow + (n/2), xcol + (n/2),		// X-22
+									xrow + (n/2), xcol,			         	// X-21
+									vrow, vcol + (n/2), (n/2));     		// V-12	
+		cilk_sync;
+
+		cilk_spawn host_RAM_B_par(X, U, V, xrow, xcol,     					// X-11
+									urow, ucol,				    			// U-11
+									vrow, vcol, (n/2));    					// V-11		
+	
+					host_RAM_B_par(X, U, V, xrow + (n/2), xcol + (n/2), 	// X-22
+									urow + (n/2), ucol + (n/2),        		// U-22
+									vrow + (n/2), vcol + (n/2), (n/2));     // V-22	
+		cilk_sync;
+
+		host_RAM_C_par(X, U, V,  xrow, xcol + (n/2),				        // X-12
+			 			urow, ucol + (n/2),             					// U-12
+						xrow + (n/2), xcol + (n/2), (n/2));       			// X-22
+
+		host_RAM_C_par(X, U, V,  xrow, xcol + (n/2),				        // X-12
+						xrow, xcol,							           	 	// X-11
+						vrow, vcol + (n/2), (n/2)); 			            // V-12 
+
+		host_RAM_B_par(X, U, V, xrow, xcol + (n/2),					        // X-12
+						urow, ucol,						                    // U-11
+						vrow + (n/2), vcol + (n/2), (n/2));            		// V-22	
+    }
+
+    return;	
 }
 
 
-void host_RAM_C_fw( unsigned long *X, unsigned long *U, unsigned long *V,
+void host_RAM_C_par( unsigned long *X, unsigned long *U, unsigned long *V,
 					uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow,
 					uint64_t vcol, uint64_t n) {
 
+    if (n <= PARALLEL_ITERATIVE_THRESHOLD) {
+    	cilk_for (int i = 0; i < n; i++) {
+	    	cilk_for (int j = 0; j < n; j++) {
+				for (int k = 0; k < n; k++) {
+					X[xrow + i][xcol + j] = min(X[xrow + i][xcol + j],
+								 X[urow + i][ucol + k] + X[vrow + k][vcol + j]);	
+				}
+	    	}
+		}
+    } else {
+		cilk_spawn host_RAM_C_par(X, U, V, xrow, xcol,			            // X-11
+									urow, ucol, 		                    // U-11
+									vrow, vcol, (n/2));	                    // V-11
+			
+		cilk_spawn host_RAM_C_par(X, U, V,  xrow, xcol + (n/2),			    // X-12
+									urow, ucol,                     		// U-11
+									vrow, vcol + (n/2), (n/2));             // V-12 
+			
+		cilk_spawn host_RAM_C_par(X, U, V, xrow + (n/2), xcol,         		// X-21
+									urow + (n/2), ucol,			         	// U-21
+									vrow, vcol, (n/2));	                    // V-11
+
+		   host_RAM_C_par(X, U, V, xrow + (n/2), xcol + (n/2),			    // X-22
+							urow + (n/2), ucol, 			                // U-21
+							vrow, vcol + (n/2), (n/2));              		// V-12
+		cilk_sync;
+
+
+		cilk_spawn host_RAM_C_par(X, U, V, xrow, xcol,			            // X-11
+									urow, ucol + (n/2),		 	            // U-12
+									vrow + (n/2), vcol, (n/2));             // V-21
+
+		cilk_spawn host_RAM_C_par(X, U, V, xrow, xcol + (n/2), 			    // X-12
+								urow, ucol + (n/2),			                // U-12
+								vrow + (n/2), vcol + (n/2), (n/2));         // V-22
+			
+		cilk_spawn host_RAM_C_par(X, U, V, xrow + (n/2), xcol,		        // X-21
+									urow + (n/2), ucol + (n/2),             // U-22
+									vrow + (n/2), vcol, (n/2));             // V-21
+
+		   host_RAM_C_par(X, U, V, xrow + (n/2), xcol + (n/2),			    // X-22
+									urow + (n/2), ucol + (n/2),             // U-22
+									vrow + (n/2), vcol + (n/2), (n/2));     // V-22
+		cilk_sync;
+    }    	
+
+    return;
 }
 
 /**
@@ -118,7 +240,7 @@ void write_to_disk(par_vector_type& zmatrix, unsigned long *X, uint64_t row, uin
 /*
  * Disk code
  */
-void host_disk_A_fw(par_vector_type& zmatrix,
+void host_disk_A_par(par_vector_type& zmatrix,
                     uint64_t xrow, uint64_t xcol, uint64_t n)
 {
 
@@ -126,7 +248,7 @@ void host_disk_A_fw(par_vector_type& zmatrix,
     if (n <= ALLOWED_SIZE_RAM) {
         unsigned long *X = new unsigned long[n*n];
         read_to_RAM(zmatrix, X, xrow, xcol, n);
-        host_RAM_A_fw(X, xrow, xcol, n);
+        host_RAM_A_par(X, xrow, xcol, n);
         write_to_disk(zmatrix, X, xrow, xcol, n);
         delete [] X;
     }     // If not, split into r chunks
@@ -144,7 +266,7 @@ void host_disk_A_fw(par_vector_type& zmatrix,
 
             // Step 1: A_step - A(X_kk, U_kk, V_kk), X,U,V are the same
             read_to_RAM(zmatrix, X, xrow + (m*k), xcol + (m*k), m);
-            host_RAM_A_fw(X, 0, 0, m);
+            host_RAM_A_par(X, 0, 0, m);
             write_to_disk(zmatrix, X, xrow + (m*k), xcol + (m*k), m);
 		}
 
@@ -163,7 +285,7 @@ void host_disk_A_fw(par_vector_type& zmatrix,
 				for (uint64_t j = k + i; (j < end + i) && (j < r); j++) {
                     read_to_RAM(zmatrix, X, xrow + (m*i), xcol + (m*j), m);
 					read_to_RAM(zmatrix, V, xrow + (m*(k + i - 1)), xcol + (m*j), m);
-                    host_RAM_C_fw(X, U, V, 0, 0, 0, 0, 0, 0, m);
+                    host_RAM_C_par(X, U, V, 0, 0, 0, 0, 0, 0, m);
                     write_to_disk(zmatrix, X, xrow + (m*i), xcol + (m*j), m);
 				}
             }
@@ -179,7 +301,7 @@ void host_disk_A_fw(par_vector_type& zmatrix,
 				for (uint64_t j = k + i; (j < end + i) && (j < r); j++) {
                     read_to_RAM(zmatrix, X, xrow + (m*i), xcol + (m*j), m);
 					read_to_RAM(zmatrix, V, xrow + (m*(1 + i)), xcol + (m*j), m);
-                    host_RAM_C_fw(X, U, V, 0, 0, 0, 0, 0, 0, m);
+                    host_RAM_C_par(X, U, V, 0, 0, 0, 0, 0, 0, m);
                     write_to_disk(zmatrix, X, xrow + (m*i), xcol + (m*j), m);
 				}
             }
@@ -192,7 +314,7 @@ void host_disk_A_fw(par_vector_type& zmatrix,
 				if (j < r) {
 					read_to_RAM(zmatrix, V, xrow + (m*j), xcol + (m*j), m);
 					read_to_RAM(zmatrix, X, xrow + (m*i), xcol + (m*j), m);
-					host_RAM_B_fw(X, U, V, 0, 0, 0, 0, 0, 0, m);
+					host_RAM_B_par(X, U, V, 0, 0, 0, 0, 0, 0, m);
 					write_to_disk(zmatrix, X, xrow + (m*i), xcol + (m*j), m);
 				} else {
 					break;
@@ -248,7 +370,7 @@ int main(int argc, char *argv[])
     double time_taken;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    host_disk_A_fw(zmatrix, 0, 0, n);
+    host_disk_A_par(zmatrix, 0, 0, n);
 
     clock_gettime(CLOCK_MONOTONIC, &finish);
     time_taken  =  finish.tv_sec - start.tv_sec;
