@@ -20,7 +20,7 @@ using namespace std;
  */
 #define ALLOWED_SIZE_RAM (1 << 11)
 #define INFINITY_LENGTH (1 << 20)
-#define PARALLEL_ITERATIVE_THRESHOLD 16
+#define PARALLEL_ITERATIVE_THRESHOLD 4
 
 /**
  * STXXL Configurations
@@ -72,7 +72,8 @@ uint64_t encode2D_to_morton_64bit(uint64_t x, uint64_t y)
  * RAM code
  */
 void host_RAM_A_par( unsigned long *X, uint64_t xrow, uint64_t xcol, uint64_t n) {
-    if (n <= PARALLEL_ITERATIVE_THRESHOLD) {
+
+    if (n <= 32) {
     	for (int steps = 2; steps <= n-1; steps++) {
 	    	cilk_for (int i = 0; i <= n - steps - 1; i++) {
 				int j = steps + i;
@@ -105,7 +106,7 @@ void host_RAM_B_par( unsigned long *X, unsigned long *U, unsigned long *V,
 					uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow,
 					uint64_t vcol, uint64_t n) {
 
-    if (n <= PARALLEL_ITERATIVE_THRESHOLD) {
+    if (n <= 8) {
 		cilk_for (int steps = n-1; steps >= 0; steps--) {
 		    cilk_for (int i = steps; i <= n-1; i++) {
 	    	    int j = i - steps;
@@ -170,7 +171,7 @@ void host_RAM_C_par( unsigned long *X, unsigned long *U, unsigned long *V,
 					uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow,
 					uint64_t vcol, uint64_t n) {
 
-    if (n <= PARALLEL_ITERATIVE_THRESHOLD) {
+    if (n <= 4) {
     	cilk_for (int i = 0; i < n; i++) {
 	    	cilk_for (int j = 0; j < n; j++) {
 				for (int k = 0; k < n; k++) {
@@ -396,6 +397,7 @@ int main(int argc, char *argv[])
     cout << "Input file: " << inp_filename << endl;
     cout << "Output file: " << op_filename << endl;
     cout << "Time taken: " << time_taken << endl;
+	cout << "ANSWER : " << zmatrix[encode2D_to_morton_64bit(0, n-1)]  << endl;
 
     op_file << "Array after execution in Z-morton vector format: " << endl;
     for (par_vector_type::const_iterator it = zmatrix.begin(); it != zmatrix.end(); ++it)
