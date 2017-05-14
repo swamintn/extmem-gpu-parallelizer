@@ -1,2 +1,0 @@
-Reading input file, zmorton_floyd_power_14.txt
-Finished reading input file, full_size=268435456

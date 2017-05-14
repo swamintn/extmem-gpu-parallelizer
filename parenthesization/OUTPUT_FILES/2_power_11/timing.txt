@@ -1,0 +1,8 @@
+[STXXL-MSG] STXXL v1.4.99 (prerelease/Debug) (git 0a80a8c55993948f7f2f6c2c5a51ff45b403045b) + gnu parallel(20120313)
+[STXXL-MSG] Disk '/work/04758/tg840576/project/stxxl/local/.stxxl' is allocated, space: 25000 MiB, I/O implementation: syscall delete_on_exit queue=0 devid=0
+Parallel r-Way R-DP Parenthesization with STXXL
+Cores used: 16
+Input file: zmorton_parenthesis_power_11.txt
+Output file: zmorton_output.txt
+Time taken: 4.16993
+ANSWER : 6127
