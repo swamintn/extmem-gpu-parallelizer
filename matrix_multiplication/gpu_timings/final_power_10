@@ -1,0 +1,19 @@
+Sun May 14 04:33:03 CDT 2017
+[STXXL-MSG] STXXL v1.4.99 (prerelease/Release) (git 0a80a8c55993948f7f2f6c2c5a51ff45b403045b) + gnu parallel(20120313)
+[STXXL-MSG] Disk '/work/04758/tg840577/project/extmem-gpu-parallelizer/testing/stxxl_disk' is allocated, space: 25000 MiB, I/O implementation: syscall delete_on_exit queue=0 devid=0
+Reading input file, /work/04758/tg840577/project/extmem-gpu-parallelizer/matrix_multiplication//input_files/U/zmorton_2_10.txt
+Finished reading input file, full_size=1048576
+Reading input file, /work/04758/tg840577/project/extmem-gpu-parallelizer/matrix_multiplication//input_files/V/zmorton_2_10.txt
+Finished reading input file, full_size=1048576
+Initializing output matrix with zeros...
+Parallel r-Way R-DP Matrix Multiplication using GPUs with STXXL
+Input matrix size: 2^10, 1024
+RAM matrix size: 2^11, 2048
+GPU global matrix size: 2^9, 512
+GPU shared matrix size: 2^4, 16
+Input file, U: /work/04758/tg840577/project/extmem-gpu-parallelizer/matrix_multiplication//input_files/U/zmorton_2_10.txt
+Input file, V: /work/04758/tg840577/project/extmem-gpu-parallelizer/matrix_multiplication//input_files/V/zmorton_2_10.txt
+Output file, X: /work/04758/tg840577/project/extmem-gpu-parallelizer/matrix_multiplication//output_files/zmorton_out_2_10.txt
+Time taken: 1.80049
+[STXXL-ERRMSG] Removing disk file: /work/04758/tg840577/project/extmem-gpu-parallelizer/testing/stxxl_disk
+Sun May 14 04:33:06 CDT 2017
