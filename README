@@ -1,0 +1,28 @@
+IMPLEMENTATION OF CACHE-EFFICIENT PARALLEL DYNAMIC PROGRAMMING ALGORITHMS ON GPUs WITH EXTERNAL MEMORY
+
+This project contains implementations of parallel divide-and-conquer algorithms using CPUs and GPUs.
+We show practical results of the speedup achieved by using GPUs.
+
+There are two complete implementations,
+
+1) Floyd-Warshall's APSP algorithm:
+   This can be found in the floyd_warshall folder - there are two implementations - CPU and GPU. A Makefile
+   is also provided for compiling the code (it requires the 'nvcc' and 'icpc' compilers to be present).
+   The results have also been uploaded.
+
+2) Matrix Multiplication:
+   This can be found in the matrix_multiplication folder - there are two implementations - CPU and GPU. A 
+   Makefile is also provided for compiling the code. The results have also been uploaded.
+
+There is one implementation in progress,
+
+1) Parenthesization problem:
+   This can be found in the parenthesization folder. There are some issues with the base case for this 
+   function and we are working on fixing it.
+
+
+Contributors:
+Arun Ramachandran
+Swaminathan Sivaraman
+
+This project is done as part of the CSE 613 Parallel Programming (Spring 2017) course at Stony Brook University.
