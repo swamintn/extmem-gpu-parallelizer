@@ -296,6 +296,15 @@ int main(int argc, char *argv[])
     delete [] X;
     */
     
+    cout << "Parallel r-Way R-DP Floyd-Warshall using GPUs with STXXL" << endl;
+    cout << "Input matrix size: " << "2^" << log_base_2(n) << ", " << n << endl;
+    cout << "RAM matrix size: " << "2^" << log_base_2(ALLOWED_SIZE_RAM) << ", " << ALLOWED_SIZE_RAM << endl;
+    cout << "GPU global matrix size: " << "2^" << log_base_2(ALLOWED_SIZE_GPU_GLOBAL) << ", " << ALLOWED_SIZE_GPU_GLOBAL << endl;
+    cout << "GPU shared matrix size: " << "2^" << log_base_2(ALLOWED_SIZE_GPU_SHARED) << ", " << ALLOWED_SIZE_GPU_SHARED << endl;
+    cout << "Input file: " << inp_filename << endl;
+    cout << "Output file: " << outp_filename << endl;
+    cout << "Time taken: " << time_taken << endl;
+
     ofstream outp_file(outp_filename);
     for (fw_vector_type::const_iterator it = zfloyd.begin(); it != zfloyd.end(); ++it) {
         if (it != zfloyd.begin())
@@ -307,15 +316,6 @@ int main(int argc, char *argv[])
     }
     outp_file << "\n";
     outp_file.close();
-
-    cout << "Parallel r-Way R-DP Floyd-Warshall using GPUs with STXXL" << endl;
-    cout << "Input matrix size: " << "2^" << log_base_2(n) << ", " << n << endl;
-    cout << "RAM matrix size: " << "2^" << log_base_2(ALLOWED_SIZE_RAM) << ", " << ALLOWED_SIZE_RAM << endl;
-    cout << "GPU global matrix size: " << "2^" << log_base_2(ALLOWED_SIZE_GPU_GLOBAL) << ", " << ALLOWED_SIZE_GPU_GLOBAL << endl;
-    cout << "GPU shared matrix size: " << "2^" << log_base_2(ALLOWED_SIZE_GPU_SHARED) << ", " << ALLOWED_SIZE_GPU_SHARED << endl;
-    cout << "Input file: " << inp_filename << endl;
-    cout << "Output file: " << outp_filename << endl;
-    cout << "Time taken: " << time_taken << endl;
 
     return 0;
 }

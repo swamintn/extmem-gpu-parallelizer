@@ -90,26 +90,13 @@ __global__ void parallel_iterative_kernel(unsigned long *X, unsigned long *U, un
     S_V[n*i + j] = V[V_off + (n*i + j)];
     
     for (uint64_t k = 0; k < n; k++) {
-        parallel_base_case(S_X, S_X, S_X, i, j, k);
+        parallel_base_case(S_X, S_U, S_V, i, j, k);
         __syncthreads();
     }
-}
 
-__global__ void tester_kernel(unsigned long *X, unsigned long *U, unsigned long *V,
-                          uint64_t xrow, uint64_t xcol, uint64_t urow, uint64_t ucol, uint64_t vrow, uint64_t vcol,
-                          uint64_t k, uint64_t n)
-{
-    uint64_t i = threadIdx.x;
-    uint64_t j = threadIdx.y;
-    uint64_t Xi = xrow + i; uint64_t Xj = xcol + j;
-    uint64_t Ui = urow + i; uint64_t Vj = vcol + j;
-    uint64_t K  = ucol + k;
-    uint64_t cur = encode2D_to_morton_64bit(Xi, Xj);
-    uint64_t first = encode2D_to_morton_64bit(Ui, K);
-    uint64_t second = encode2D_to_morton_64bit(K, Vj);
-    X[cur] = min(X[cur], (U[first] + V[second]));
+    // Copy back to global memory
+    X[X_off + (n*i + j)] = S_X[n*i + j];
 }
-
 
 /**
  * A_fw kernels
