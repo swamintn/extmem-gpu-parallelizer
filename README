@@ -1,5 +1,4 @@
 IMPLEMENTATIONS OF CACHE-EFFICIENT PARALLEL DYNAMIC PROGRAMMING ALGORITHMS ON GPUs WITH EXTERNAL MEMORY
--------------------------------------------------------------------------------------------------------
 
 This project contains implementations of parallel divide-and-conquer algorithms using CPUs and GPUs. We show practical results of the speedup achieved by using GPUs. We also use external memory algorithms that allow for solving problems of very large size that won't fit in RAM.
 
